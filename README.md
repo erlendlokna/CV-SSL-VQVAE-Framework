@@ -1,1 +1,1 @@
-# master-project
+# Representation learning VQ-VAE
