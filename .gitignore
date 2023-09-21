@@ -129,7 +129,7 @@ env.bak/
 venv.bak/
 
 # UCR dataset
-data/UCR_TS_Archive_2015
+data/UCRArchive_2018
 
 # Spyder project settings
 .spyderproject
