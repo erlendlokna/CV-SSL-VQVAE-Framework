@@ -28,6 +28,30 @@
             }
           },
           {
+            "id": "19a7c814d734fb6f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Articles.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
+            "id": "0238c0dfb10dbcc5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Todo.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
             "id": "5a77b161874d53bd",
             "type": "leaf",
             "state": {
@@ -40,7 +64,7 @@
             }
           }
         ],
-        "currentTab": 1
+        "currentTab": 3
       }
     ],
     "direction": "vertical"
@@ -106,7 +130,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Codebook.md",
+                "file": "Todo.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -123,7 +147,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Codebook.md",
+                "file": "Todo.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -146,7 +170,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Codebook.md"
+                "file": "Todo.md"
               }
             }
           }
@@ -167,9 +191,11 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "2e30837a3f99f4d5",
+  "active": "0238c0dfb10dbcc5",
   "lastOpenFiles": [
-    "Encoders-Decoders.md",
-    "Codebook.md"
+    "Articles.md",
+    "Todo.md",
+    "Codebook.md",
+    "Encoders-Decoders.md"
   ]
 }

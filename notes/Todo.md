@@ -1,0 +1,3 @@
+- [ ] Implement Encoder/Decoder
+- [ ] Implement Vector quantifier
+- [ ] 
