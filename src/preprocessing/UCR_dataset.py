@@ -1,14 +1,21 @@
 import pandas as pd
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
 import math
 import os
 
-class UCRDataset(Dataset):
+"""
+Code taken from:
+    https://github.com/ML4ITS/TimeVQVAE/blob/main/preprocessing/preprocess_ucr.py
+"""
+
+
+class UCRDatasetImporter(object):
     def __init__(self,
                 dataset_name: str,
-                data_scaling: bool):
+                data_scaling: bool,
+                **kwargs):
         
         #source: https://github.com/ML4ITS/TimeVQVAE/blob/main/preprocessing/preprocess_ucr.py
         
@@ -35,21 +42,47 @@ class UCRDataset(Dataset):
 
         np.nan_to_num(self.X_train, copy=False)
         np.nan_to_num(self.X_test, copy=False)
-
+        
         print('self.X_train.shape:', self.X_train.shape)
         print('self.X_test.shape:', self.X_test.shape)
 
         print("# unique labels (train):", np.unique(self.Y_train.reshape(-1)))
         print("# unique labels (test):", np.unique(self.Y_test.reshape(-1)))
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    import random
 
-    data = UCRDataset('Wafer', data_scaling=True)
+class UCRDataset(Dataset):
+    def __init__(self, kind: str, dataset_importer: UCRDatasetImporter, **kwargs):
+        super().__init__()
+        self.kind = kind
 
-    x,y = data.X_train, data.Y_train
+        if kind == 'train':
+            self.X, self.Y = dataset_importer.X_train, dataset_importer.Y_train
+        elif kind == 'test':
+            self.X, self.Y = dataset_importer.X_test, dataset_importer.Y_test
+        else:
+            raise ValueError
+        
+        self._len = self.X.shape[0]
 
-    n = random.randrange(0,len(x))
-    plt.plot(np.arange(len(x[n])), x[n])
-    plt.show()
+
+    @staticmethod
+    def _assign_float32(*xs):
+        """
+        assigns `dtype` of `float32`
+        so that we wouldn't have to change `dtype` later before propagating data through a model.
+        """
+        new_xs = []
+        for x in xs:
+            new_xs.append(x.astype(np.float32))
+        return new_xs[0] if (len(xs) == 1) else new_xs
+
+    def getitem_default(self, idx):
+        x, y = self.X[idx, :], self.Y[idx, :]
+        x = x[None, :]  # adds a channel dim
+        return x, y
+
+    def __getitem__(self, idx):
+        return self.getitem_default(idx)
+
+    def __len__(self):
+        return self._len

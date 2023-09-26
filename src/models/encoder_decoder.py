@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 """
-References:
 This code is taken from:
 - https://github.com/nadavbh12/VQ-VAE/blob/master/vq_vae/auto_encoder.py
 - https://github.com/ML4ITS/TimeVQVAE/blob/main/encoder_decoders/vq_vae_encdec.py

@@ -1,0 +1,33 @@
+dataset:
+  name: 'CBF'
+  in_channels: 1
+  data_scaling: True
+  batch_sizes:
+    vqvae: 128
+
+trainer_params:
+  gpus:
+    - 0
+  max_epochs:
+    vqvae: 2000
+
+
+encoder:
+  dim: 64
+  n_resnet_blocks: 4
+  downsampled_width: 8
+
+decoder:
+  dim: 64
+  n_resnet_blocks: 4
+
+VQVAE:
+  n_fft: 8
+  codebook:
+    width: 32
+    dim: 64
+  decay: 0.8
+  commitment_weight: 1.
+  emb_dropout: 0.
+  perceptual_loss_weight: 0
+
