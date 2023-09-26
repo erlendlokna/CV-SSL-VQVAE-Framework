@@ -1,9 +1,11 @@
 dataset:
-  name: 'CBF'
+  dataset_name: 'CBF'
   in_channels: 1
   data_scaling: True
   batch_sizes:
     vqvae: 128
+  num_workers: 0
+
 
 trainer_params:
   gpus:
@@ -24,7 +26,7 @@ decoder:
 VQVAE:
   n_fft: 8
   codebook:
-    width: 32
+    size: 32
     dim: 64
   decay: 0.8
   commitment_weight: 1.

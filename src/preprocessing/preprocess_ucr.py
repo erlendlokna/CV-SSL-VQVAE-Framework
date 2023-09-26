@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder
 import math
 import os
@@ -86,3 +86,4 @@ class UCRDataset(Dataset):
 
     def __len__(self):
         return self._len
+

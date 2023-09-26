@@ -13,8 +13,5 @@ def train_vqvae(config: dict,
                 ):
     
     input_length = train_data_loader.dataset.X.shape[-1]
-"""
 
-if __name__ == "__main__":
-    from src.models.vqvae import VQVAE
-    
+"""
