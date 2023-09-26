@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def compute_downsample_rate(input_length: int,
                             n_fft: int,
                             downsampled_width: int):

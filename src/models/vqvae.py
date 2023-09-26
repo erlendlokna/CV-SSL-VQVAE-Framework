@@ -1,13 +1,12 @@
-from encoder_decoders import VQVAEEncoder, VQVAEDecoder
-from vq import VectorQuantize
-from utils import compute_downsample_rate
+from src.models.encoder_decoder import VQVAEEncoder, VQVAEDecoder
+from src.models.vq import VectorQuantize
+from src.utils import compute_downsample_rate
 
 import numpy as np
 
-from models.base_model import BaseModel
+from src.models.base_model import BaseModel
 
 import pytorch_lightning as pl
-
 
 class VQVAE(BaseModel):
     def __init__(self,
@@ -34,6 +33,6 @@ class VQVAE(BaseModel):
 
         #decoder
         self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
-        
 
-
+    def print():
+        print("hei")
