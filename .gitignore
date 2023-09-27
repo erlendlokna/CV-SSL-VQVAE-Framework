@@ -12,6 +12,8 @@ notes/.obsidian
 # UCR dataset
 data/UCRArchive_2018
 data/UCRArchive_2018/
+wandb/
+saved_models/
 
 # Distribution / packaging
 .Python

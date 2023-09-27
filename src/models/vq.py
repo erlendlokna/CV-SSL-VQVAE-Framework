@@ -373,7 +373,6 @@ class VectorQuantize(nn.Module):
 
 
 if __name__ == '__main__':
-    print("hei")
     torch.manual_seed(0)
 
     B, N, D = 1024, 32, 128

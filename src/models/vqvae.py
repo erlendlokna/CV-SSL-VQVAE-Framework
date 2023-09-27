@@ -1,3 +1,6 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
 from src.models.encoder_decoder import VQVAEEncoder, VQVAEDecoder
 from src.models.vq import VectorQuantize
 
@@ -7,14 +10,14 @@ from src.utils import (compute_downsample_rate,
                         quantize,
                         freeze)
 
-import numpy as np
-
-from src.models.base_model import BaseModel
+from src.models.base_model import BaseModel, detach_the_unnecessary
 from supervised_FCN.example_pretrained_model_loading import load_pretrained_FCN
 
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
 
 import wandb
 
@@ -44,7 +47,7 @@ class VQVAE(BaseModel):
         #decoder
         self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
 
-        if config['VQ-VAE']['perceptual_loss_weight']:
+        if config['VQVAE']['perceptual_loss_weight']:
             self.fcn = load_pretrained_FCN(config['dataset']['dataset_name']).to(self.device)
             self.fcn.eval()
             freeze(self.fcn)
@@ -75,36 +78,113 @@ class VQVAE(BaseModel):
         #perplexity = perplexity #Updated above during quantize
         #vq_losses['LF'] = vq_loss_l #Updated above during quantize
 
-        if self.config['VQ-VAE']['perceptual_loss_weight']:
+        if self.config['VQVAE']['perceptual_loss_weight']:
             z_fcn = self.fcn(x.float(), return_feature_vector=True).detach()
             zhat_fcn = self.fcn(xhat.float(), return_feature_vector=True)
             recons_loss['perceptual'] = F.mse_loss(z_fcn, zhat_fcn)
 
         # plot `x` and `xhat`
+        """
         r = np.random.rand()
         if self.training and r <= 0.05:
             b = np.random.randint(0, x.shape[0])
-            c = np.random.randint(0, x_h.shape[1])
+            c = np.random.randint(0, x.shape[1])
 
-            fig, axes = plt.subplots(3, 1, figsize=(4, 2*3))
+            fig, axes = plt.subplots(1, 1, figsize=(4, 2))
             plt.suptitle(f'ep_{self.current_epoch}')
-            axes[0].plot(x_l[b, c].cpu())
-            axes[0].plot(xhat_l[b, c].detach().cpu())
-            axes[0].set_title('x_l')
+            axes[0].plot(x[b, c].cpu())
+            axes[0].plot(xhat[b, c].detach().cpu())
+            axes[0].set_title('x')
             axes[0].set_ylim(-4, 4)
 
-            axes[1].plot(x_h[b, c].cpu())
-            axes[1].plot(xhat_h[b, c].detach().cpu())
-            axes[1].set_title('x_h')
-            axes[1].set_ylim(-4, 4)
-
-            axes[2].plot(x_l[b, c].cpu() + x_h[b, c].cpu())
-            axes[2].plot(xhat_l[b, c].detach().cpu() + xhat_h[b, c].detach().cpu())
-            axes[2].set_title('x')
-            axes[2].set_ylim(-4, 4)
 
             plt.tight_layout()
             wandb.log({"x vs xhat (training)": wandb.Image(plt)})
             plt.close()
+        """
+        return recons_loss, vq_loss, perplexity
+    
 
-        return recons_loss, vq_losses, perplexities
+    def training_step(self, batch, batch_idx):
+        x = batch
+        recons_loss, vq_loss, perplexity = self.forward(x)
+
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
+
+        # lr scheduler
+        sch = self.lr_schedulers()
+        sch.step()
+
+        # log
+        loss_hist = {'loss': loss,
+                     'recons_loss.time': recons_loss['time'],
+
+                     'recons_loss.timefreq': recons_loss['timefreq'],
+
+                     #'commit_loss': vq_loss['commit_loss'],
+                     'commit_loss': vq_loss, #?
+                     
+                     'perplexity': perplexity,
+
+                     'perceptual': recons_loss['perceptual']
+                     }
+        
+        detach_the_unnecessary(loss_hist)
+        return loss_hist
+    
+    def validation_step(self, batch, batch_idx):
+        x = batch
+        recons_loss, vq_loss, perplexity = self.forward(x)
+
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
+
+        # log
+        loss_hist = {'loss': loss,
+                     'recons_loss.time': recons_loss['time'],
+
+                     'recons_loss.timefreq': recons_loss['timefreq'],
+
+                     #'commit_loss': vq_loss['commit_loss'],
+                     'commit_loss': vq_loss, #?
+                     
+                     'perplexity': perplexity,
+
+                     'perceptual': recons_loss['perceptual']
+                     }
+        
+        detach_the_unnecessary(loss_hist)
+        return loss_hist
+
+
+    def configure_optimizers(self):
+        opt = torch.optim.AdamW([{'params': self.encoder.parameters(), 'lr': self.config['model_params']['LR']},
+                                 {'params': self.decoder.parameters(), 'lr': self.config['model_params']['LR']},
+                                 {'params': self.vq_model.parameters(), 'lr': self.config['model_params']['LR']},
+                                 ],
+                                weight_decay=self.config['model_params']['weight_decay'])
+        
+        return {'optimizer': opt, 'lr_scheduler': CosineAnnealingLR(opt, self.T_max)}
+
+
+    def test_step(self, batch, batch_idx):
+        x = batch
+        recons_loss, vq_loss, perplexity = self.forward(x)
+
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
+
+        # log
+        loss_hist = {'loss': loss,
+                     'recons_loss.time': recons_loss['time'],
+
+                     'recons_loss.timefreq': recons_loss['timefreq'],
+
+                     #'commit_loss': vq_loss['commit_loss'],
+                     'commit_loss': vq_loss, #?
+                     
+                     'perplexity': perplexity,
+
+                     'perceptual': recons_loss['perceptual']
+                     }
+        
+        detach_the_unnecessary(loss_hist)
+        return loss_hist

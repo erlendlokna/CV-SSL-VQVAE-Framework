@@ -2,7 +2,12 @@ import numpy as np
 from einops import rearrange
 import torch
 import yaml
+import os
+from pathlib import Path
+import tempfile
 
+def get_root_dir():
+    return Path(__file__).parent.parent.parent
 
 def compute_downsample_rate(input_length: int,
                             n_fft: int,
@@ -57,3 +62,32 @@ def quantize(z, vq_model, transpose_channel_length_axes=False):
 def freeze(model):
     for param in model.parameters():
         param.requires_grad = False
+
+
+def save_model(models_dict: dict, dirname='saved_models', id: str = ''):
+    """
+    :param models_dict: {'model_name': model, ...}
+    """
+    try:
+        if not os.path.isdir(get_root_dir().joinpath(dirname)):
+            os.mkdir(get_root_dir().joinpath(dirname))
+
+        id_ = id[:]
+        if id != '':
+            id_ = '-' + id_
+        for model_name, model in models_dict.items():
+            torch.save(model.state_dict(), get_root_dir().joinpath(dirname, model_name + id_ + '.ckpt'))
+    except PermissionError:
+        # dirname = tempfile.mkdtemp()
+        dirname = tempfile.gettempdir()
+        print(f'\nThe trained model is saved in the following temporary dirname due to some permission error: {dirname}.\n')
+
+        id_ = id[:]
+        if id != '':
+            id_ = '-' + id_
+        for model_name, model in models_dict.items():
+            torch.save(model.state_dict(), get_root_dir().joinpath(dirname, model_name + id_ + '.ckpt'))
+
+
+if __name__ == '__main__':
+    print(get_root_dir())
