@@ -4,8 +4,6 @@ import tarfile
 from pathlib import Path
 
 
-def get_root_dir():
-    return Path(__file__).parent.parent
 
 def download_ucr_datasets(url='https://figshare.com/ndownloader/files/37909926', chunk_size=128, zip_fname='UCR_archive.zip'):
     #dirname = str(get_root_dir().joinpath("data"))

@@ -78,7 +78,9 @@ class VQVAEEncoder(nn.Module):
         :param x: (B, C, H, W)
         :return (B, C, H, W') where W' <= W
         """
+        
         out = self.encoder(x)
+        
         if not self.is_num_tokens_updated:
             self.H_prime += out.shape[2]
             self.W_prime += out.shape[3]

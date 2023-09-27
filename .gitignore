@@ -6,14 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
-#obsidian
-notes/.obsidian
-
-# UCR dataset
+# custom
 data/UCRArchive_2018
 data/UCRArchive_2018/
 wandb/
 saved_models/
+notes/.obsidian
 
 # Distribution / packaging
 .Python

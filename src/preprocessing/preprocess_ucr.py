@@ -3,6 +3,8 @@ import numpy as np
 from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder
 import math
+from src.utils import get_root_dir, download_ucr_datasets
+import tarfile
 import os
 
 """
@@ -12,19 +14,17 @@ Code taken from:
 
 
 class UCRDatasetImporter(object):
-    def __init__(self,
-                dataset_name: str,
-                data_scaling: bool,
-                **kwargs):
-        
-        #source: https://github.com/ML4ITS/TimeVQVAE/blob/main/preprocessing/preprocess_ucr.py
-        
-        self.root_dir = '../data/UCRArchive_2018/'
-        
-        assert os.path.exists(self.root_dir), 'UCRArchive_2018 does not exist.. please add it to the data folder'
+    def __init__(self, dataset_name: str, data_scaling: bool, **kwargs):
+        """
+        :param dataset_name: e.g., "ElectricDevices"
+        :param data_scaling
+        """
+        download_ucr_datasets()
+        self.data_root = get_root_dir().joinpath("data", "UCRArchive_2018", dataset_name)
 
-        df_train = pd.read_csv(self.root_dir + f'{dataset_name}/' +f'/{dataset_name}_TRAIN.tsv', sep='\t', header=None)
-        df_test = pd.read_csv(self.root_dir + f'{dataset_name}/' + f'/{dataset_name}_TEST.tsv', sep='\t', header=None)
+        # fetch an entire dataset
+        df_train = pd.read_csv(self.data_root.joinpath(f"{dataset_name}_TRAIN.tsv"), sep='\t', header=None)
+        df_test = pd.read_csv(self.data_root.joinpath(f"{dataset_name}_TEST.tsv"), sep='\t', header=None)
 
         self.X_train, self.X_test = df_train.iloc[:, 1:].values, df_test.iloc[:, 1:].values
         self.Y_train, self.Y_test = df_train.iloc[:, [0]].values, df_test.iloc[:, [0]].values
@@ -42,13 +42,12 @@ class UCRDatasetImporter(object):
 
         np.nan_to_num(self.X_train, copy=False)
         np.nan_to_num(self.X_test, copy=False)
-        
+
         print('self.X_train.shape:', self.X_train.shape)
         print('self.X_test.shape:', self.X_test.shape)
 
         print("# unique labels (train):", np.unique(self.Y_train.reshape(-1)))
         print("# unique labels (test):", np.unique(self.Y_test.reshape(-1)))
-
 
 class UCRDataset(Dataset):
     def __init__(self, kind: str, dataset_importer: UCRDatasetImporter, **kwargs):
@@ -56,9 +55,9 @@ class UCRDataset(Dataset):
         self.kind = kind
 
         if kind == 'train':
-            self.X, self.Y = dataset_importer.X_train, dataset_importer.Y_train
+            self.X, self.Y = dataset_importer.X_train.astype(np.float32), dataset_importer.Y_train.astype(np.float32)
         elif kind == 'test':
-            self.X, self.Y = dataset_importer.X_test, dataset_importer.Y_test
+            self.X, self.Y = dataset_importer.X_test.astype(np.float32), dataset_importer.Y_test.astype(np.float32)
         else:
             raise ValueError
         
@@ -86,4 +85,5 @@ class UCRDataset(Dataset):
 
     def __len__(self):
         return self._len
+
 

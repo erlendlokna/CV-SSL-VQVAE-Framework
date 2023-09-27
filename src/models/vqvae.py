@@ -59,12 +59,13 @@ class VQVAE(BaseModel):
         vq_loss = None
         perplexity = 0.
 
+        #forward
         C = x.shape[1]
-
         u = time_to_timefreq(x, self.n_fft, C)  # (B, C, H, W)
         
         if not self.decoder.is_upsample_size_updated:
                 self.decoder.register_upsample_size(torch.IntTensor(np.array(u.shape[2:])))
+
 
         z = self.encoder(u)
 
@@ -84,24 +85,21 @@ class VQVAE(BaseModel):
             recons_loss['perceptual'] = F.mse_loss(z_fcn, zhat_fcn)
 
         # plot `x` and `xhat`
-        """
         r = np.random.rand()
         if self.training and r <= 0.05:
             b = np.random.randint(0, x.shape[0])
             c = np.random.randint(0, x.shape[1])
-
-            fig, axes = plt.subplots(1, 1, figsize=(4, 2))
+            fig, ax = plt.subplots()
             plt.suptitle(f'ep_{self.current_epoch}')
-            axes[0].plot(x[b, c].cpu())
-            axes[0].plot(xhat[b, c].detach().cpu())
-            axes[0].set_title('x')
-            axes[0].set_ylim(-4, 4)
+            ax.plot(x[b, c].cpu())
+            ax.plot(xhat[b,c].detach().cpu())
+            ax.set_title('x')
+            ax.set_ylim(-4, 4)
 
-
-            plt.tight_layout()
             wandb.log({"x vs xhat (training)": wandb.Image(plt)})
             plt.close()
-        """
+
+
         return recons_loss, vq_loss, perplexity
     
 
@@ -109,7 +107,16 @@ class VQVAE(BaseModel):
         x = batch
         recons_loss, vq_loss, perplexity = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
+        """
+        print('-----------------')
+        print("recons_loss['time']:", type(recons_loss['time']))
+        print("recons_loss['timefreq']", type(recons_loss['timefreq']))
+        print("vq_loss", vq_loss)
+        print("recons_loss['perceptual']:", type(recons_loss['perceptual']))
+        print('-----------------')
+        """
+
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
         # lr scheduler
         sch = self.lr_schedulers()
