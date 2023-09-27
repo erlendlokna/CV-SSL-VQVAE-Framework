@@ -1,3 +1,4 @@
 # Representation learning VQ-VAE
 
-![handsome_optimus_prime_____by_h_perales4_dfdlhlt-fullview](https://github.com/erlendlokna/representation-learning-VQ-VAE/assets/80318998/1e469d1d-e241-4071-92c4-66a951986ff2)
+![c40d7a7060fb74926c257db982b6ddaf](https://github.com/erlendlokna/representation-learning-VQ-VAE/assets/80318998/2af7d6dd-112b-4f0e-80a3-69418148aaf6)
+
