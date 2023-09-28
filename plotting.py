@@ -5,7 +5,7 @@ import numpy as np
 
 
 
-def sample_plot_classes(data, labels):
+def sample_plot_classes(data, labels, name):
     """
     Displays a "n x 3" grid of plots, where n is the number of classes.
     """
@@ -29,6 +29,7 @@ def sample_plot_classes(data, labels):
                 plt.plot(X, color=colormap(label / (nr_unique_labels - 1)))  # Normalize label for colormap
 
     plt.tight_layout()
+    plt.suptitle(f'Dataset: {name}',x = 0.1, y = 1)
     plt.show()
 
 
@@ -41,7 +42,7 @@ if __name__ == "__main__":
 
     training_data = dataset_importer.X_train
     labels = dataset_importer.Y_train
+    name = config['dataset']['dataset_name']
 
-
-    sample_plot_classes(training_data, labels)
+    sample_plot_classes(training_data, labels, name)
 
