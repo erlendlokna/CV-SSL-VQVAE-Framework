@@ -143,7 +143,7 @@ class VQVAE(BaseModel):
         x = batch
         recons_loss, vq_loss, perplexity = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
         # log
         loss_hist = {'loss': loss,
@@ -177,8 +177,8 @@ class VQVAE(BaseModel):
         x = batch
         recons_loss, vq_loss, perplexity = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss + recons_loss['perceptual']
-
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
+        
         # log
         loss_hist = {'loss': loss,
                      'recons_loss.time': recons_loss['time'],

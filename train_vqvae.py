@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from src.models.vqvae import VQVAE
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
+from src.utils import load_yaml_param_settings
 from src.utils import save_model
 
 
@@ -46,7 +47,20 @@ def train_VQVAE(config: dict,
     wandb.finish()
 
     print('saving the models...')
-    save_model({'encoder_l': train_model.encoder,
-                'decoder_l': train_model.decoder,
-                'vq_model_l': train_model.vq_model,
+    save_model({'encoder': train_model.encoder,
+                'decoder': train_model.decoder,
+                'vq_model': train_model.vq_model,
                 }, id=config['dataset']['dataset_name'])
+
+
+if __name__ == "__main__":
+    config_dir = 'src/configs/config.yaml' #dir to config file
+
+    config = load_yaml_param_settings(config_dir)
+
+    # data pipeline
+    dataset_importer = UCRDatasetImporter(**config['dataset'])
+    batch_size = config['dataset']['batch_sizes']['vqvae']
+    train_data_loader, test_data_loader = [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
+
+    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=True)
