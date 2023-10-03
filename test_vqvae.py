@@ -34,8 +34,8 @@ def evaluate_vqvae(config:dict,
                          devices=config['trainer_params']['gpus'],
                          accelerator='gpu')
     
-    trainer.test(model=loaded_vqvae, dataloaders = test_data_loader)
-
+    metrics = trainer.test(model=loaded_vqvae, dataloaders = test_data_loader)
+    print(metrics)
 
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file

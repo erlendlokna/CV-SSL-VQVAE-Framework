@@ -19,5 +19,5 @@ if __name__ == "__main__":
     #input_length = train_data_loader.dataset.X.shape[-1]
     #train_exp = VQVAE(input_length, config, len(train_data_loader.dataset))
     
-    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=False)
+    #train_VQVAE(config, train_data_loader, test_data_loader, do_validate=False)
     

@@ -149,21 +149,22 @@ class VQVAE(BaseModel):
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
         # log
-        loss_hist = {'loss': loss,
-                     'recons_loss.time': recons_loss['time'],
+        val_loss_hist = {'validation_loss': loss,
+                     'validation_recons_loss.time': recons_loss['time'],
 
-                     'recons_loss.timefreq': recons_loss['timefreq'],
+                     'validation_recons_loss.timefreq': recons_loss['timefreq'],
 
                      #'commit_loss': vq_loss['commit_loss'],
-                     'commit_loss': vq_loss, #?
+                     'validation_commit_loss': vq_loss, #?
                      
-                     'perplexity': perplexity,
+                     'validation_perplexity': perplexity,
 
-                     'perceptual': recons_loss['perceptual']
+                     'validation_perceptual': recons_loss['perceptual']
                      }
         
-        detach_the_unnecessary(loss_hist)
-        return loss_hist
+        detach_the_unnecessary(val_loss_hist)
+        wandb.log(val_loss_hist)
+        return val_loss_hist
 
 
     def configure_optimizers(self):
@@ -207,8 +208,7 @@ class LoadVQVAE(BaseModel):
                 config: dict,
                 ):
         """
-        Loading model.
-        dataset_name: name of dataset model is trained on.
+        Loads encoder, decoder and vq model.
         """
 
         super().__init__()

@@ -10,7 +10,7 @@ __pycache__/
 data/UCRArchive_2018
 data/UCRArchive_2018/
 wandb/
-saved_models/
+#saved_models/
 notes/.obsidian
 
 # Distribution / packaging
