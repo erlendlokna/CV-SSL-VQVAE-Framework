@@ -3,6 +3,7 @@ from src.utils import load_yaml_param_settings
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from train_vqvae import train_VQVAE
+from src.evaluation.vqvae_eval import LoadVQVAE
 
 if __name__ == "__main__":
     

@@ -52,6 +52,7 @@ def train_VQVAE(config: dict,
                 'vq_model': train_model.vq_model,
                 }, id=config['dataset']['dataset_name'])
 
+    trainer.validate(train_model)
 
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file
