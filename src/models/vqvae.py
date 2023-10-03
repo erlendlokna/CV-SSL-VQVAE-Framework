@@ -74,6 +74,7 @@ class VQVAE(BaseModel):
 
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)
 
+        
         uhat = self.decoder(z_q)
         xhat = timefreq_to_time(uhat, self.n_fft, C)
 
@@ -265,6 +266,15 @@ class LoadVQVAE(BaseModel):
         z = self.encoder(u)
 
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)
+
+        print("----------------------------------")
+        print(f"z_q (shape:{z_q.shape}):\n")
+        print(z_q)
+        print("\n")
+        print(f"incices (shape:{indices.shape}):\n")
+        print(indices)
+        print("----------------------------------")
+        return
 
         uhat = self.decoder(z_q)
         xhat = timefreq_to_time(uhat, self.n_fft, C)

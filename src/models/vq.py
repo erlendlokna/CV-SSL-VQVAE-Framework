@@ -13,7 +13,8 @@ from einops import rearrange, repeat
 from contextlib import contextmanager
 
 from x_transformers import ContinuousTransformerWrapper, Encoder as TFEncoder, Decoder as TFDecoder
-
+import numpy as np
+from scipy.cluster.vq import whiten, kmeans, vq, kmeans2
 
 def exists(val):
     return val is not None

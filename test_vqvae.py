@@ -21,8 +21,6 @@ def evaluate_vqvae(config:dict,
 
     input_length = test_data_loader.dataset.X.shape[-1]
 
-    dataset_name = config['dataset']['dataset_name']
-
     loaded_vqvae = LoadVQVAE(input_length, config)
     
     wandb_logger = WandbLogger(project=project_name, name=None, config=config)
