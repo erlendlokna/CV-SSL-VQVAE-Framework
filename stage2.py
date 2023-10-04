@@ -4,6 +4,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+import numpy as np
 
 from src.models.vqvae import VQVAE
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
@@ -14,14 +16,36 @@ from src.models.vqvae import LoadVQVAE
 
 
 def codebook_classification(config:dict,
-                   data_loader: DataLoader):
+                   data_loader: DataLoader,
+                   eval=True):
     
     input_length = data_loader.dataset.X.shape[-1]
     num_labels = 3
     classifier = KMeansCodeBook(input_length, num_labels, config)
 
-    classifier.classify(data_loader)
+    if eval:
+        num_runs = 100
+        accuracies, sse = classifier.multiple_classifications(data_loader, num=num_runs)
+        mean_acc = np.mean(accuracies)
+        mean_sse = np.mean(sse)
 
+        f, ax1 = plt.subplots()
+        x = np.arange(num_runs)
+        ax1.set_ylabel("Accuracy")
+        ax1.plot(x, accuracies, c="tab:blue")
+        ax1.plot(x, [mean_acc for _ in range(num_runs)], '--', c="grey", label=f"mean acc: {mean_acc}")
+        ax1.legend()
+
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("SSE")
+        ax2.plot(x, sse, c="tab:red")
+        ax2.plot(x, [mean_sse for _ in range(num_runs)], '--', c="grey", label=f"mean sse: {mean_sse}")
+        ax2.legend()
+
+        f.savefig(f"{num_runs}_{classifier.classifier_name}_{config['dataset']['dataset_name']}.png")
+    else:
+        accuracy = classifier.classify(data_loader)
+        print(accuracy)
 
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file
@@ -34,4 +58,4 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader, test_data_loader = [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    codebook_classification(config, test_data_loader)
+    codebook_classification(config, test_data_loader, eval=True)

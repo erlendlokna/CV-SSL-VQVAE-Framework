@@ -1,9 +1,10 @@
 import numpy as np
-from scipy.cluster.vq import whiten, kmeans, vq
+#from scipy.cluster.vq import whiten, kmeans, vq
 import matplotlib.pyplot as plt
 from statistics import mode
 from sklearn.metrics import accuracy_score
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 from src.models.encoder_decoder import VQVAEEncoder, VQVAEDecoder
 from src.models.vq import VectorQuantize
 
@@ -55,6 +56,8 @@ class KMeansCodeBook:
         self.load(self.decoder, get_root_dir().joinpath('saved_models'), f'decoder-{dataset_name}.ckpt')
         self.load(self.vq_model, get_root_dir().joinpath('saved_models'), f'vq_model-{dataset_name}.ckpt')
 
+        self.classifier_name = "Kmeans"
+        
     def load(self, model, dirname, fname):
         """
         model: instance
@@ -83,7 +86,7 @@ class KMeansCodeBook:
         dataloader_iterator = iter(data_loader)
         number_of_batches = len(data_loader)
 
-        full_ts_s = [] #TODO: make static
+        full_ts_s = [] #TODO: make static. List containing index representations of ts in codebook.
         y_labels = []
 
         for i in range(number_of_batches):
@@ -100,37 +103,52 @@ class KMeansCodeBook:
                 y_labels.append(y[i])
                 
         full_ts_s = torch.stack(full_ts_s)
+        full_ts_s.numpy()
         y_labels = torch.flatten(torch.stack(y_labels))
+        y_labels.numpy()
 
-        #Kmeans:
-        full_ts_s_normalized = whiten(full_ts_s) #normalising         
-        centroids, mean_dist = kmeans(full_ts_s_normalized, self.k)
-        clusters, dist = vq(full_ts_s_normalized, centroids)
 
-        clusters = self.filter_cluster_labels(clusters, y_labels)
+        scaler = StandardScaler()
+        scaled_full_ts_s = scaler.fit_transform(full_ts_s)
+        kmeans = KMeans(init="random", n_init=10, n_clusters=self.k, max_iter=300)
+        kmeans.fit(scaled_full_ts_s)
+
+        remapped_labels = self.remap_clusters(y_labels, kmeans.labels_)
         
-        print(accuracy_score(clusters, y_labels))
+        return{
+            "sse": kmeans.inertia_, #The same as sse
+            "centers": kmeans.cluster_centers_,
+            "labels": remapped_labels,
+            "accuracy": accuracy_score(y_labels, remapped_labels)
+        }
 
 
-    def filter_cluster_labels(self, clusters, ylabels):
-        #print(clusters.shape)
-        #print(ylabels.shape)
-
-
-
-        mode_0 = mode(clusters[np.where(ylabels == 0)])
-        clusters[np.where(clusters == mode_0)] = 0
-
-        mode_1 = mode(clusters[np.where(ylabels == 1)])
-        clusters[np.where(clusters == mode_1)] = 1
-
-        mode_2 = mode(clusters[np.where(ylabels == 2)])
-        clusters[np.where(clusters == mode_1)] = 2
+    def remap_clusters(self, true_labels, cluster_labels):
+        unique_clusters = np.unique(cluster_labels)
+        mapping = {}
         
-        return clusters
+        for cluster in unique_clusters:
+            # Find the most frequent true label in this cluster
+            true_label_counts = np.bincount(true_labels[cluster_labels == cluster])
+            most_frequent_true_label = np.argmax(true_label_counts)
+            
+            # Map cluster label to most frequent true label
+            mapping[cluster] = most_frequent_true_label
+        
+        # Remap cluster labels
+        remapped_labels = np.vectorize(lambda x: mapping[x])(cluster_labels)
+        
+        return remapped_labels
 
+    def multiple_classifications(self, data_loader, num = 100):
+        from tqdm import tqdm
 
-        #(np.where(ylabels == 0))
+        accuracies = np.zeros(num)
+        sse = np.zeros(num)
 
-        #print(clusters)
-        #print(ylabels)
+        for i in tqdm(range(num)):
+            cluster_data = self.classify(data_loader)
+            accuracies[i] = cluster_data['accuracy']
+            sse[i] = cluster_data['sse']
+
+        return accuracies, sse
