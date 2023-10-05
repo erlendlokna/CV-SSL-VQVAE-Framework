@@ -30,6 +30,7 @@ def sample_plot_classes(data, labels, name):
 
     plt.tight_layout()
     plt.suptitle(f'Dataset: {name}',x = 0.1, y = 1)
+    plt.savefig("datasetplot.png")
     plt.show()
 
 

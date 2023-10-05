@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from statistics import mode
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, SpectralClustering
 from src.models.encoder_decoder import VQVAEEncoder, VQVAEDecoder
 from src.models.vq import VectorQuantize
 
@@ -32,13 +32,11 @@ import wandb
 class KMeansCodeBook:
     def __init__(self,
                 input_length,
-                k: int,
-                config, **kwargs):
+                config):
 
         self.input_length = input_length
         self.config = config
         self.n_fft = config['VQVAE']['n_fft']
-        self.k = k
 
         dim = config['encoder']['dim']
         in_channels = config['dataset']['in_channels']
@@ -107,10 +105,11 @@ class KMeansCodeBook:
         y_labels = torch.flatten(torch.stack(y_labels))
         y_labels.numpy()
 
+        k = len(np.unique(y_labels)) #number of clusters
 
         scaler = StandardScaler()
         scaled_full_ts_s = scaler.fit_transform(full_ts_s)
-        kmeans = KMeans(init="random", n_init=10, n_clusters=self.k, max_iter=300)
+        kmeans = KMeans(init="random", n_init=10, n_clusters=k, max_iter=300)
         kmeans.fit(scaled_full_ts_s)
 
         remapped_labels = self.remap_clusters(y_labels, kmeans.labels_)

@@ -121,7 +121,6 @@ class VQVAE(BaseModel):
         """
 
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
-
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
@@ -132,14 +131,16 @@ class VQVAE(BaseModel):
 
                      'recons_loss.timefreq': recons_loss['timefreq'],
 
-                     #'commit_loss': vq_loss['commit_loss'],
-                     'commit_loss': vq_loss, #?
+                     'commit_loss': vq_loss['commit_loss'],
+                     #'commit_loss': vq_loss, #?
                      
                      'perplexity': perplexity,
 
                      'perceptual': recons_loss['perceptual']
                      }
         
+        wandb.log(loss_hist)
+
         detach_the_unnecessary(loss_hist)
         return loss_hist
     
@@ -155,8 +156,8 @@ class VQVAE(BaseModel):
 
                      'validation_recons_loss.timefreq': recons_loss['timefreq'],
 
-                     #'commit_loss': vq_loss['commit_loss'],
-                     'validation_commit_loss': vq_loss, #?
+                     'validation_commit_loss': vq_loss['commit_loss'],
+                     #'validation_commit_loss': vq_loss, #?
                      
                      'validation_perplexity': perplexity,
 
@@ -190,8 +191,8 @@ class VQVAE(BaseModel):
 
                      'recons_loss.timefreq': recons_loss['timefreq'],
 
-                     #'commit_loss': vq_loss['commit_loss'],
-                     'commit_loss': vq_loss, #?
+                     'commit_loss': vq_loss['commit_loss'],
+                     #'commit_loss': vq_loss, #?
                      
                      'perplexity': perplexity,
 
@@ -266,15 +267,6 @@ class LoadVQVAE(BaseModel):
         z = self.encoder(u)
 
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)
-
-        print("----------------------------------")
-        print(f"z_q (shape:{z_q.shape}):\n")
-        print(z_q)
-        print("\n")
-        print(f"incices (shape:{indices.shape}):\n")
-        print(indices)
-        print("----------------------------------")
-        return
 
         uhat = self.decoder(z_q)
         xhat = timefreq_to_time(uhat, self.n_fft, C)

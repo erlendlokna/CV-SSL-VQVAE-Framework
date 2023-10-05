@@ -31,7 +31,8 @@ def train_VQVAE(config: dict,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],
                          max_epochs=config['trainer_params']['max_epochs']['vqvae'],
                          devices=config['trainer_params']['gpus'],
-                         accelerator='gpu')
+                         accelerator='gpu',
+                         check_val_every_n_epoch=20)
     
     trainer.fit(train_model,
                 train_dataloaders=train_data_loader,
