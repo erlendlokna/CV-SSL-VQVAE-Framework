@@ -50,8 +50,8 @@ def codebook_classification(config:dict,
         f.savefig(f"{num_runs}_{classifier.classifier_name}_{config['dataset']['dataset_name']}.png")
         f_hist.savefig(f"{num_runs}_{classifier.classifier_name}_{config['dataset']['dataset_name']}_hist.png")
     else:
-        accuracy = classifier.classify(data_loader)
-        print(accuracy)
+        cluster_data = classifier.classify(data_loader)
+        print(cluster_data['accuracy'])
 
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file
