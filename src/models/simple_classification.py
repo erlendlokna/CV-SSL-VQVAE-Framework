@@ -29,7 +29,7 @@ import tempfile
 
 import wandb
 
-class BaseCodeBookClassifier:
+class BaseCodeBook:
     def __init__(self,
                 input_length,
                 config):
@@ -85,8 +85,7 @@ class BaseCodeBookClassifier:
         dataloader_iterator = iter(data_loader)
         number_of_batches = len(data_loader)
 
-        full_ts_s = [] #TODO: make static. List containing index representations of ts in codebook.
-        y_labels = []
+        full_ts_zqs = [] #TODO: make static. List containing zqs for each timeseries in data_loader
 
         for i in range(number_of_batches):
             try:
@@ -96,12 +95,12 @@ class BaseCodeBookClassifier:
                 x, y = next(dataloader_iterator)
             
             z_q, s = self.encode_to_z_q(x, self.encoder, self.vq_model)
-            
-            for i, s_i in enumerate(s):
-                full_ts_s.append(s_i)
-  
-        full_ts_s = torch.stack(full_ts_s)
-        return full_ts_s.numpy()
+
+            for i, zq_i in enumerate(z_q):
+                
+                full_ts_zqs.append(zq_i.detach().flatten().numpy())
+    
+        return full_ts_zqs
     
 
     def remap_clusters(self, true_labels, cluster_labels):
@@ -124,7 +123,7 @@ class BaseCodeBookClassifier:
     def classify(data_loader):
         raise NotImplemented
 
-class KMeansCodeBook(BaseCodeBookClassifier):
+class KMeansCodeBook(BaseCodeBook):
     """
     Kmeans codebook classifier
     """
@@ -135,15 +134,15 @@ class KMeansCodeBook(BaseCodeBookClassifier):
     
     def classify(self, data_loader):
 
-        dataset_codebook_indicies = self.run_through_codebook(data_loader)
+        zqs = self.run_through_codebook(data_loader)
         y_labels = data_loader.dataset.Y.flatten().astype(int)
 
         k = len(np.unique(y_labels)) #number of clusters
 
         scaler = StandardScaler()
-        scaled_full_ts_s = scaler.fit_transform(dataset_codebook_indicies)
+        scaled_zqs= scaler.fit_transform(zqs)
         kmeans = KMeans(init="random", n_init=10, n_clusters=k, max_iter=300)
-        kmeans.fit(scaled_full_ts_s)
+        kmeans.fit(scaled_zqs)
 
         remapped_labels = self.remap_clusters(y_labels, kmeans.labels_)
         
@@ -167,3 +166,27 @@ class KMeansCodeBook(BaseCodeBookClassifier):
             sse[i] = cluster_data['sse']
 
         return accuracies, sse
+
+class SpectralCodeBook(BaseCodeBook):
+    def __init__(self, 
+                input_length,
+                config): 
+        super().__init__(input_length, config)
+    
+    def classify(self, data_loader):
+
+        zqs = self.run_through_codebook(data_loader)
+        y_labels = data_loader.dataset.Y.flatten().astype(int)
+
+        k = len(np.unique(y_labels)) #number of clusters
+
+        scaler = StandardScaler()
+        scaled_zqs= scaler.fit_transform(zqs)
+        spec = SpectralClustering(n_clusters=k, assign_labels='discretize')
+        clustering = spec.fit(scaled_zqs)
+
+        remapped_labels = self.remap_clusters(y_labels, clustering.labels_)
+        
+        return {
+            'accuracy': accuracy_score(y_labels, remapped_labels)
+        }

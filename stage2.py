@@ -1,4 +1,4 @@
-from src.models.simple_classification import KMeansCodeBook
+from src.models.simple_classification import KMeansCodeBook, SpectralCodeBook
 import wandb
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -22,6 +22,7 @@ def codebook_classification(config:dict,
     input_length = data_loader.dataset.X.shape[-1]
 
     classifier = KMeansCodeBook(input_length, config)
+    #classifier = SpectralCodeBook(input_length, config)
 
     if eval:
         num_runs = 500
