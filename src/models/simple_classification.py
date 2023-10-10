@@ -2,9 +2,6 @@ import numpy as np
 #from scipy.cluster.vq import whiten, kmeans, vq
 import matplotlib.pyplot as plt
 from statistics import mode
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans, SpectralClustering
 from src.models.encoder_decoder import VQVAEEncoder, VQVAEDecoder
 from src.models.vq import VectorQuantize
 
@@ -24,10 +21,15 @@ import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans, SpectralClustering
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+
 from pathlib import Path
 import tempfile
 
-import wandb
 
 class BaseCodeBook:
     def __init__(self,
@@ -154,19 +156,6 @@ class KMeansCodeBook(BaseCodeBook):
         }
 
 
-    def multiple_classifications(self, data_loader, num = 100):
-        from tqdm import tqdm
-
-        accuracies = np.zeros(num)
-        sse = np.zeros(num)
-
-        for i in tqdm(range(num)):
-            cluster_data = self.classify(data_loader)
-            accuracies[i] = cluster_data['accuracy']
-            sse[i] = cluster_data['sse']
-
-        return accuracies, sse
-
 class SpectralCodeBook(BaseCodeBook):
     def __init__(self, 
                 input_length,
@@ -177,7 +166,7 @@ class SpectralCodeBook(BaseCodeBook):
 
         zqs = self.run_through_codebook(data_loader)
         y_labels = data_loader.dataset.Y.flatten().astype(int)
-
+        print(zqs.shape)
         k = len(np.unique(y_labels)) #number of clusters
 
         scaler = StandardScaler()
@@ -190,3 +179,45 @@ class SpectralCodeBook(BaseCodeBook):
         return {
             'accuracy': accuracy_score(y_labels, remapped_labels)
         }
+
+
+class SVMCodebook(BaseCodeBook):
+    def __init__(self, 
+                input_length,
+                config):
+        super().__init__(input_length, config)
+
+    def train(self, train_data_loader, kernel):
+        train_zqs = self.run_through_codebook(train_data_loader)
+        ylabs = train_data_loader.dataset.Y.flatten().astype(int)
+
+        self.svm_classifier = SVC(kernel = kernel)
+        self.svm_classifier.fit(train_zqs, ylabs)
+
+    def classify(self, test_data_loader):
+        test_zqs = self.run_through_codebook(test_data_loader)
+
+        y_pred = self.svm_classifier.predict(test_zqs)
+        y_true = test_data_loader.dataset.Y.flatten().astype(int)
+
+        return {
+            'accuracy': accuracy_score(y_true, y_pred)
+        }
+
+    def split_and_classify(self, data_loader, kernel):
+        zqs = self.run_through_codebook(data_loader)
+        y_labs = data_loader.dataset.Y.flatten().astype(int)
+
+        zqs_train, zqs_test, y_train, y_test = train_test_split(zqs, y_labs, test_size=0.2)
+
+        svm = SVC(kernel=kernel)
+        svm.fit(zqs_train, y_train)
+        y_pred = svm.predict(zqs_test)
+
+        return {
+            'accuracy': accuracy_score(y_test, y_pred)
+        }
+
+
+
+
