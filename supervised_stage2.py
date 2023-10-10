@@ -1,4 +1,5 @@
-from src.models.simple_classification import SVMCodebook
+from src.models.simple_classification import SVMCodebook, BaseCodeBook
+from sklearn.svm import SVC
 import wandb
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -29,20 +30,18 @@ if __name__ == "__main__":
 
     input_length = train_data_loader.dataset.X.shape[-1]
     
-
-    
     SVM = SVMCodebook(input_length, config)
     
-    #SVM.train(train_data_loader, kernel='linear')
-    
-    #prediction_data = SVM.classify(test_data_loader)
-    
+    prediction_no_split = SVM.train_and_predict(train_dataloader=train_data_loader, test_dataloader=test_data_loader, kernel='linear')
 
-    #prediction_data = SVM.split_and_classify(test_data_loader, kernel='linear')
-    prediction_data = SVM.split_and_classify(test_data_loader, kernel='sigmoid')
-    print(prediction_data['accuracy'])
+    prediction_split = SVM.split_dataloader_and_predict(dataloader=test_data_loader, test_size=0.1, kernel='linear')
 
+    print('training on train dataloader and predicting on test dataloader:\n accuracy:', prediction_no_split['accuracy'],'\nconf matrix:', prediction_no_split['confusion_matrix'])
     
+    print('splitting test set and training and predicting on this:\n accuracy:', prediction_split['accuracy'], '\nconf matrix:', prediction_split['confusion_matrix'])
+
+
+
 
     
     

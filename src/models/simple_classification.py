@@ -21,7 +21,7 @@ import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from sklearn.metrics import accuracy_score
+from sklearn import metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.model_selection import train_test_split
@@ -152,7 +152,7 @@ class KMeansCodeBook(BaseCodeBook):
             "sse": kmeans.inertia_, #The same as sse
             "centers": kmeans.cluster_centers_,
             "labels": remapped_labels,
-            "accuracy": accuracy_score(y_labels, remapped_labels)
+            "accuracy": metrics.accuracy_score(y_labels, remapped_labels)
         }
 
 
@@ -177,7 +177,7 @@ class SpectralCodeBook(BaseCodeBook):
         remapped_labels = self.remap_clusters(y_labels, clustering.labels_)
         
         return {
-            'accuracy': accuracy_score(y_labels, remapped_labels)
+            'accuracy': metrics.accuracy_score(y_labels, remapped_labels)
         }
 
 
@@ -187,35 +187,36 @@ class SVMCodebook(BaseCodeBook):
                 config):
         super().__init__(input_length, config)
 
-    def train(self, train_data_loader, kernel):
-        train_zqs = self.run_through_codebook(train_data_loader)
-        ylabs = train_data_loader.dataset.Y.flatten().astype(int)
 
-        self.svm_classifier = SVC(kernel = kernel)
-        self.svm_classifier.fit(train_zqs, ylabs)
+    def train_and_predict(self, train_dataloader, test_dataloader, kernel='linear'):
+        zqs_train = self.run_through_codebook(train_dataloader)
+        y_train = train_dataloader.dataset.Y.flatten().astype(int)
 
-    def classify(self, test_data_loader):
-        test_zqs = self.run_through_codebook(test_data_loader)
-
-        y_pred = self.svm_classifier.predict(test_zqs)
-        y_true = test_data_loader.dataset.Y.flatten().astype(int)
-
-        return {
-            'accuracy': accuracy_score(y_true, y_pred)
-        }
-
-    def split_and_classify(self, data_loader, kernel):
-        zqs = self.run_through_codebook(data_loader)
-        y_labs = data_loader.dataset.Y.flatten().astype(int)
-
-        zqs_train, zqs_test, y_train, y_test = train_test_split(zqs, y_labs, test_size=0.2)
+        zqs_test = self.run_through_codebook(test_dataloader)
+        y_test = test_dataloader.dataset.Y.flatten().astype(int)
 
         svm = SVC(kernel=kernel)
         svm.fit(zqs_train, y_train)
         y_pred = svm.predict(zqs_test)
 
         return {
-            'accuracy': accuracy_score(y_test, y_pred)
+            'accuracy': metrics.accuracy_score(y_test, y_pred),
+            'confusion_matrix': metrics.confusion_matrix(y_test, y_pred),
+        }
+
+    def split_dataloader_and_predict(self, dataloader, test_size=0.2, kernel='linear'):
+        zqs = self.run_through_codebook(dataloader)
+        y_labs = dataloader.dataset.Y.flatten().astype(int)
+
+        zqs_train, zqs_test, y_train, y_test = train_test_split(zqs, y_labs, test_size=test_size)
+
+        svm = SVC(kernel=kernel)
+        svm.fit(zqs_train, y_train)
+        y_pred = svm.predict(zqs_test)
+
+        return {
+            'accuracy': metrics.accuracy_score(y_test, y_pred),
+            'confusion_matrix': metrics.confusion_matrix(y_test, y_pred),
         }
 
 
