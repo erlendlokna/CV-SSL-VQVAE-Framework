@@ -34,7 +34,7 @@ if __name__ == "__main__":
     
     prediction_no_split = SVM.train_and_predict(train_dataloader=train_data_loader, test_dataloader=test_data_loader, kernel='linear')
 
-    prediction_split = SVM.split_dataloader_and_predict(dataloader=test_data_loader, test_size=0.1, kernel='linear')
+    prediction_split = SVM.split_dataloader_and_predict(dataloader=test_data_loader, test_size=0.9, kernel='linear')
 
     print('training on train dataloader and predicting on test dataloader:\n accuracy:', prediction_no_split['accuracy'],'\nconf matrix:', prediction_no_split['confusion_matrix'])
     
