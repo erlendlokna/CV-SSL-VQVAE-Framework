@@ -64,7 +64,7 @@ if __name__ == "__main__":
     labels = dataset_importer.Y_train
     name = config['dataset']['dataset_name']
 
-    # sample_plot_classes(training_data, labels, name)
-    sample_plot_classes(test_data, labels, name)
+    sample_plot_classes(training_data, labels, name)
+    # sample_plot_classes(test_data, labels, name)
     
 
