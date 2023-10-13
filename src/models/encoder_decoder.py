@@ -130,13 +130,16 @@ class VQVAEDecoder(nn.Module):
         :return  (B, C, H, W)
         """
         out = self.decoder(x)
+        
         if isinstance(self.upsample_size, torch.Tensor):
             upsample_size = self.upsample_size.cpu().numpy().astype(int)
             upsample_size = [*upsample_size]
+            upsample_size = [int(u) for u in upsample_size]
             out = F.interpolate(out, size=upsample_size, mode='bilinear', align_corners=True)
             return out
         else:
             raise ValueError('self.upsample_size is not yet registered.')
+        
 
 if __name__ == "__main__":
     import numpy as np

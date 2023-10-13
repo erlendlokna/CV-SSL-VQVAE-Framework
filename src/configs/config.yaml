@@ -1,5 +1,5 @@
 dataset:
-  dataset_name: 'CBF'
+  dataset_name: 'SwedishLeaf'
   in_channels: 1
   data_scaling: True
   batch_sizes:

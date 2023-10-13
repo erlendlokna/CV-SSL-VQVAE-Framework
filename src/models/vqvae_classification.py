@@ -109,6 +109,7 @@ class BaseVQVAE:
         number_of_batches = len(data_loader)
 
         full_ts_zqs = [] #TODO: make static. List containing zqs for each timeseries in data_loader
+        full_ts_s = []
 
         for i in range(number_of_batches):
             try:
@@ -120,10 +121,10 @@ class BaseVQVAE:
             z_q, s = self.encode_to_z_q(x, self.encoder, self.vq_model)
 
             for i, zq_i in enumerate(z_q):
-                
                 full_ts_zqs.append(zq_i.detach().flatten().numpy())
+                full_ts_s.append(s[i].flatten().numpy())
     
-        return np.array(full_ts_zqs)
+        return np.array(full_ts_zqs), np.array(full_ts_s)
     
     def get_codebook(self):
         return self.vq_model.codebook
