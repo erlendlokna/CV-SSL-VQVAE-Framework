@@ -6,6 +6,10 @@ import os
 from pathlib import Path
 import tempfile
 import requests
+import matplotlib.pyplot as plt
+import umap
+from sklearn.decomposition import PCA
+from sklearn import metrics
 
 def get_root_dir():
     return Path(__file__).parent.parent.parent
@@ -122,5 +126,48 @@ def download_ucr_datasets(url='https://figshare.com/ndownloader/files/37909926',
     os.remove('./data/UCR_archive.zip')
 
 
-if __name__ == '__main__':
-    print(get_root_dir())
+class UMAP_wrapper:
+    def __init__(self, model, n_comps=2): 
+        self.model = model
+        self.reducer = umap.UMAP(n_components=n_comps)
+
+    def fit(self, x_train, y_labs):
+        train_embs = self.reducer.fit_transform(x_train)
+        self.model.fit(train_embs, y_labs)
+
+    def predict(self, x_test):
+        test_embs = self.reducer.transform(x_test)
+        return self.model.predict(test_embs)
+
+class PCA_wrapper:
+    def __init__(self, model, var_explained_crit=0.9): 
+        self.model = model
+        self.pca = PCA(var_explained_crit)
+
+    def fit(self, x_train, y_labs):
+        train_embs = self.pca.fit_transform(x_train)
+        self.model.fit(train_embs, y_labs)
+
+    def predict(self, x_test):
+        test_embs = self.pca.transform(x_test)
+        preds = self.model.predict(test_embs)
+        return preds
+    
+def UMAP_plots(X, labs, labs2=None, comps = 2):
+    embs = umap.UMAP(densmap=True, n_components=comps, random_state=42).fit(X).embedding_
+
+    if labs2 is not None:
+        f, ax = plt.subplots(1, 2, figsize=(16,8))
+        ax[0].scatter(embs[:, 0], embs[:, 1], c=labs); ax[0].set_title("true")
+        ax[1].scatter(embs[:, 0], embs[:, 1], c=labs2); ax[1].set_title("predicted")
+        plt.show()
+    else:
+        f, ax = plt.subplots(figsize=(10, 10))
+        ax.scatter(embs[:, 0], embs[:, 1], c = labs);
+        plt.show()
+
+
+def unsupervised_score(labs_true, labs_pred):
+    print(f"rand score: {metrics.rand_score(labs_true, labs_pred)}")
+    print(f"adjusted rand score: {metrics.adjusted_rand_score(labs_true, labs_pred)}")
+    print(f"normalized mutual info score: {metrics.normalized_mutual_info_score(labs_true, labs_pred)}")

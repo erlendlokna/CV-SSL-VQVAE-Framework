@@ -53,9 +53,16 @@ def sample_plot_classes(data, labels, name):
 
 
 if __name__ == "__main__":
+
     #Get dataset
     config_dir = 'src/configs/config.yaml' #dir to config file
     config = load_yaml_param_settings(config_dir)
+
+    import sys
+    args = sys.argv
+    if len(args) > 1:
+        config['dataset']['dataset_name'] = args[1]
+
     dataset_importer = UCRDatasetImporter(**config['dataset'])
 
     training_data = dataset_importer.X_train
@@ -63,6 +70,7 @@ if __name__ == "__main__":
 
     labels = dataset_importer.Y_train
     name = config['dataset']['dataset_name']
+
 
     sample_plot_classes(training_data, labels, name)
     # sample_plot_classes(test_data, labels, name)
