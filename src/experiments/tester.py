@@ -146,13 +146,14 @@ class RepTester(BaseVQVAE):
             return single_test(Z, y, embed, test_size)
 
 
-def plot_results(results, embed=False):
+def plot_results(results, title="", embed=False):
     plt.style.use("fivethirtyeight")
     if embed:
         f, ax = plt.subplots(3, 3, figsize=(20, 20))
         i, j = 0, 0
         for k in results.keys():
             if (i) % 3 == 0 and i != 0: j+=1; i = 0
+            ax[j][i].set_ylim(0, 1)
             ax[j][i].plot(results[k]); ax[j][i].set_title(k)
             mean = np.mean(results[k])
             ax[j][i].plot([mean for _ in range(len(results[k]))], '--', c='grey')
@@ -162,11 +163,13 @@ def plot_results(results, embed=False):
         i = 0
         for k in results.keys():
             if all([v == 0 for v in results[k]]): continue
+            ax[i].set_ylim(0, 1)
             ax[i].plot(results[k]); ax[i].set_title(k)
             mean = np.mean(results[k])
             ax[i].plot([mean for _ in range(len(results[k]))], '--', c='grey', label=f"{k} mean: {round(mean, 4)}")
             i+=1
     f.legend()
+    f.suptitle(title, fontsize=16)
     plt.show()
         
     

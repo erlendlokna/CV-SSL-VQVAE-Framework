@@ -23,5 +23,6 @@ if __name__ == "__main__":
 
     tester = RepTester(config, input_length, train_data_loader, test_data_loader)
 
-    test = tester.test_flatten(n_runs=20)
-    plot_results(test)
+    test = tester.test_flatten(n_runs=20, embed=False)
+    plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
+
