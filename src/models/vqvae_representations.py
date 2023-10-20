@@ -156,5 +156,20 @@ class PretrainedVQVAE:
         zqs_mp = torch.flatten(zqs_mp, start_dim = 1)
         return zqs_mp
 
+    def get_conv2d_zqs(self, data_loader, in_channels, out_channels, kernel_size, stride, padding):
+        zqs, s = self.run_through_encoder_codebook(data_loader)
+        zqs = torch.tensor(zqs, dtype=torch.float)
+
+        conv = torch.nn.Conv2d(in_channels, out_channels,
+                               kernel_size, stride, padding)
+        relu = torch.nn.LeakyReLU()
+        avgpool = torch.nn.AvgPool2d(2, 2)
+
+        new_zqs = conv(zqs)
+        new_zqs = relu(new_zqs)
+
+        zqs_conv = torch.flatten(new_zqs, start_dim=1)
+        return zqs_conv.detach()
+
     def get_codebook(self):
         return self.vq_model.codebook

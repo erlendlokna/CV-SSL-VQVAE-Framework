@@ -57,7 +57,7 @@ class RepTester:
     def max_pooled_zqs(self, kernel, stride):
         zqs_train = self.VQVAE.get_max_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
         zqs_train = torch.flatten(zqs_train, start_dim = 1).numpy()
-        zqs_test = self.VAVAE.get_max_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
+        zqs_test = self.VQVAE.get_max_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
         zqs_test = torch.flatten(zqs_test, start_dim = 1).numpy()
         return np.concatenate((zqs_test, zqs_train), axis=0)
     
@@ -83,6 +83,10 @@ class RepTester:
         zqs_test, _ = self.VQVAE.get_flatten_zqs_s(self.test_data_loader)
         return np.concatenate((zqs_test, zqs_train), axis=0)
     
+    def conv2d_zqs(self, in_channels, out_channels, kernel_size, stride, padding):
+        zqs_train = self.VQVAE.get_conv2d_zqs(self.train_data_loader, in_channels, out_channels, kernel_size, stride, padding).numpy()
+        zqs_test = self.VQVAE.get_conv2d_zqs(self.test_data_loader, in_channels, out_channels, kernel_size, stride, padding).numpy()
+        return np.concatenate((zqs_test, zqs_train), axis=0)
     # ---- Tests -----
     def test_flatten(self, n_runs = None, embed=False, scale=True, test_size = 0.2):
         """
@@ -144,6 +148,15 @@ class RepTester:
         else:
             return single_test(Z, y, embed, test_size)
 
+    def test_conv2d(self, n_runs, embed=False, scale=True, test_size=0.2,
+                    in_channels=64, out_channels=64, kernel_size=2, stride=2, padding=1):
+        y = self.get_y()
+        Z = self.conv2d_zqs(in_channels, out_channels, kernel_size, stride, padding)
+        if scale: Z = StandardScaler().fit_transform(Z)
+        if n_runs:
+            return run_tests(Z, y, n_runs, embed, test_size)
+        else:
+            return single_test(Z, y, embed, test_size)
 
 def plot_results(results, title="", embed=False):
     """
@@ -163,7 +176,7 @@ def plot_results(results, title="", embed=False):
     else:
         f, ax = plt.subplots(1, 3, figsize=(20, 10))
         i = 0
-        for k in results.keys():
+        for k, i in results.keys():
             if all([v == 0 for v in results[k]]): continue
             ax[i].set_ylim(0, 1)
             ax[i].plot(results[k]); ax[i].set_title(k)
@@ -175,4 +188,24 @@ def plot_results(results, title="", embed=False):
     plt.show()
         
     
-    
+def plot_multiple_results(results, labels, title="", embed=False):
+    """
+    Plotter function for the results with alpha transparency.
+    """
+    plt.style.use("fivethirtyeight")
+
+    f, ax = plt.subplots(1,3, figsize=(20,20))
+
+    for i in range(len(results)):
+        res = results[i]
+        j = 0
+        for k in res.keys():
+            if all([v == 0 for v in res[k]]): continue
+            mean = np.mean(res[k])
+            ax[j].set_ylim(0, 1)
+            ax[j].plot(res[k], label=f"{labels[i],k}, mean: {round(mean, 4)}")
+            ax[j].set_title(k)
+            ax[j].plot([mean for _ in range(len(res[k]))], '--', c='grey')
+            j+=1
+    f.legend()
+    plt.show()

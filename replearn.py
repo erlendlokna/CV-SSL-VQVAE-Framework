@@ -3,7 +3,7 @@ from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 
 from src.models.vqvae_representations import PretrainedVQVAE
-from src.experiments.tester import RepTester, plot_results
+from src.experiments.tester import RepTester, plot_results, plot_multiple_results
 from src.experiments.supervised_tests import supervised_test
 
 if __name__ == "__main__": 
@@ -25,6 +25,8 @@ if __name__ == "__main__":
     trained_vqvae = PretrainedVQVAE(input_length, config)
     tester = RepTester(trained_vqvae, train_data_loader, test_data_loader)
 
-    test = tester.test_flatten(n_runs=20, embed=False) #embed: tests classifiers on PCA and UMAP embeddings
-    plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
-
+    test1 = tester.test_flatten(n_runs=100)#embed: tests classifiers on PCA and UMAP embeddings
+    test2 = tester.test_conv2d(n_runs=100, out_channels=32, kernel_size=2, stride=2)
+    #test = tester.test_flatten(n_runs=20)
+    #plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
+    plot_multiple_results([test1, test2], ["flatten", "conv(32, 2, 2)"])
