@@ -25,6 +25,6 @@ if __name__ == "__main__":
     trained_vqvae = PretrainedVQVAE(input_length, config)
     tester = RepTester(trained_vqvae, train_data_loader, test_data_loader)
 
-    test = tester.test_flatten(n_runs=20, embed=False)
+    test = tester.test_flatten(n_runs=20, embed=False) #embed: tests classifiers on PCA and UMAP embeddings
     plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
 
