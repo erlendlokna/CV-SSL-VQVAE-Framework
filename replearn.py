@@ -2,6 +2,7 @@ from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 
+from src.models.vqvae_representations import PretrainedVQVAE
 from src.experiments.tester import RepTester, plot_results
 from src.experiments.supervised_tests import supervised_test
 
@@ -21,7 +22,8 @@ if __name__ == "__main__":
 
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    tester = RepTester(config, input_length, train_data_loader, test_data_loader)
+    trained_vqvae = PretrainedVQVAE(input_length, config)
+    tester = RepTester(trained_vqvae, train_data_loader, test_data_loader)
 
     test = tester.test_flatten(n_runs=20, embed=False)
     plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")

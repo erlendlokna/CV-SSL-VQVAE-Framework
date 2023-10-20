@@ -52,7 +52,7 @@ def remap_clusters(true_labels, cluster_labels):
     
     return remapped_labels
 
-class BaseVQVAE:
+class PretrainedVQVAE:
     def __init__(self,
                 input_length,
                 config):

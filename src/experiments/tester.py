@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
 
-from src.models.vqvae_representations import BaseVQVAE
 
 from src.utils import (
     UMAP_wrapper, PCA_wrapper, UMAP_plots
@@ -41,50 +40,50 @@ def single_test(Z, y, embed, test_size):
 
 
 
-class RepTester(BaseVQVAE):
+class RepTester:
     #Tester class for VQVAE's zqs. 
-    def __init__(self, config, input_length,
+    def __init__(self, VQVAE,
                  train_data_loader, test_data_loader):
-        super().__init__(input_length, config) #initialising the VQVAE model
+        self.VQVAE = VQVAE
         self.train_data_loader = train_data_loader
         self.test_data_loader = test_data_loader
 
-    # ---- Preprocessing helper functions -----
+    # ---- Preprocessing VQVAE helper functions -----
     def get_y(self): 
         return np.concatenate((
             self.test_data_loader.dataset.Y.flatten().astype(int),
             self.train_data_loader.dataset.Y.flatten().astype(int)), axis = 0)
     
     def max_pooled_zqs(self, kernel, stride):
-        zqs_train = self.get_max_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
+        zqs_train = self.VQVAE.get_max_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
         zqs_train = torch.flatten(zqs_train, start_dim = 1).numpy()
-        zqs_test = self.get_max_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
+        zqs_test = self.VAVAE.get_max_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
         zqs_test = torch.flatten(zqs_test, start_dim = 1).numpy()
         return np.concatenate((zqs_test, zqs_train), axis=0)
     
     def avg_pooled_zqs(self, kernel, stride):
-        zqs_train = self.get_avg_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
+        zqs_train = self.VQVAE.get_avg_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
         zqs_train = torch.flatten(zqs_train, start_dim = 1).numpy()
-        zqs_test = self.get_avg_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
+        zqs_test = self.VQVAE.get_avg_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
         zqs_test = torch.flatten(zqs_test, start_dim = 1).numpy()
         return np.concatenate((zqs_test, zqs_train), axis=0)
     
     def global_avg_pooled_zqs(self):
-        zqs_train = self.get_global_avg_pooled_zqs(self.train_data_loader)
-        zqs_test = self.get_global_avg_pooled_zqs(self.test_data_loader)
+        zqs_train = self.VQVAE.get_global_avg_pooled_zqs(self.train_data_loader)
+        zqs_test = self.VQVAE.get_global_avg_pooled_zqs(self.test_data_loader)
         return np.concatenate((zqs_test, zqs_train), axis=0)
 
     def global_max_pooled_zqs(self):
-        zqs_train = self.get_global_max_pooled_zqs(self.train_data_loader)
-        zqs_test = self.get_global_max_pooled_zqs(self.test_data_loader)
+        zqs_train = self.VQVAE.get_global_max_pooled_zqs(self.train_data_loader)
+        zqs_test = self.VQVAE.get_global_max_pooled_zqs(self.test_data_loader)
         return np.concatenate((zqs_test, zqs_train), axis=0)
 
     def flatten_zqs(self):
-        zqs_train, _ = self.get_flatten_zqs_s(self.train_data_loader)
-        zqs_test, _ = self.get_flatten_zqs_s(self.test_data_loader)
+        zqs_train, _ = self.VQVAE.get_flatten_zqs_s(self.train_data_loader)
+        zqs_test, _ = self.VQVAE.get_flatten_zqs_s(self.test_data_loader)
         return np.concatenate((zqs_test, zqs_train), axis=0)
-    # ---- Tests -----
     
+    # ---- Tests -----
     def test_flatten(self, n_runs = None, embed=False, scale=True, test_size = 0.2):
         """
         Runs n_runs of supervised_tests on flatten zqs.
@@ -147,6 +146,9 @@ class RepTester(BaseVQVAE):
 
 
 def plot_results(results, title="", embed=False):
+    """
+    Plotter function for the 
+    """
     plt.style.use("fivethirtyeight")
     if embed:
         f, ax = plt.subplots(3, 3, figsize=(20, 20))
