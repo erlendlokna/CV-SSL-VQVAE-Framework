@@ -22,11 +22,14 @@ if __name__ == "__main__":
 
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    trained_vqvae = PretrainedVQVAE(input_length, config)
-    tester = RepTester(trained_vqvae, train_data_loader, test_data_loader)
+    regular_vqvae = PretrainedVQVAE(input_length, config)
+    contrastive_vqvae = PretrainedVQVAE(input_length, config, contrastive=True)
 
-    test1 = tester.test_flatten(n_runs=100)#embed: tests classifiers on PCA and UMAP embeddings
-    test2 = tester.test_conv2d(n_runs=100, out_channels=32, kernel_size=2, stride=2)
+    tester_reg = RepTester(regular_vqvae, train_data_loader, test_data_loader)
+    tester_contr = RepTester(contrastive_vqvae, train_data_loader, test_data_loader)
+
+    test1 = tester_reg.test_max_pooling(n_runs=20)#embed: tests classifiers on PCA and UMAP embeddings
+    test2 = tester_contr.test_max_pooling(n_runs=20)
     #test = tester.test_flatten(n_runs=20)
     #plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
-    plot_multiple_results([test1, test2], ["flatten", "conv(32, 2, 2)"])
+    plot_multiple_results([test1, test2], ["Regular", "Contrastive"])

@@ -52,13 +52,11 @@ def remap_clusters(true_labels, cluster_labels):
     
     return remapped_labels
 
-class PretrainedVQVAE:
+class BaseVQVAE:
+    #Untrained instance
     def __init__(self,
                 input_length,
                 config):
-        """
-        Base model for classifying the VQVAE codebook. 
-        """
         self.input_length = input_length
         self.config = config
         self.n_fft = config['VQVAE']['n_fft']
@@ -72,25 +70,6 @@ class PretrainedVQVAE:
         self.encoder = VQVAEEncoder(dim, 2*in_channels, downsampled_rate, config['encoder']['n_resnet_blocks'])
         self.vq_model = VectorQuantize(dim, config['VQVAE']['codebook']['size'], **config['VQVAE'])
         self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
-        
-        #grabbing pretrained models:
-        dataset_name = config['dataset']['dataset_name']
-        self.load(self.encoder, get_root_dir().joinpath('saved_models'), f'encoder-{dataset_name}.ckpt')
-        self.load(self.decoder, get_root_dir().joinpath('saved_models'), f'decoder-{dataset_name}.ckpt')
-        self.load(self.vq_model, get_root_dir().joinpath('saved_models'), f'vq_model-{dataset_name}.ckpt')
-
-        self.classifier_name = "Kmeans"
-        
-    def load(self, model, dirname, fname):
-        """
-        model: instance
-        path_to_saved_model_fname: path to the ckpt file (i.e., trained model)
-        """
-        try:
-            model.load_state_dict(torch.load(dirname.joinpath(fname)))
-        except FileNotFoundError:
-            dirname = Path(tempfile.gettempdir())
-            model.load_state_dict(torch.load(dirname.joinpath(fname)))
     
     def encode_to_z_q(self, x, encoder: VQVAEEncoder, vq_model: VectorQuantize):
         """
@@ -103,6 +82,8 @@ class PretrainedVQVAE:
         z_q, indices, vq_loss, perplexity = quantize(z, vq_model)  # (b c h w), (b (h w) h), ...
         return z_q, indices
 
+
+    # ---- discrete latent variable extraction ----
     def run_through_encoder_codebook(self, data_loader, flatten=False, max_pool=False):
         #collecting all the timeseries codebook index representations:
         dataloader_iterator = iter(data_loader)
@@ -173,3 +154,70 @@ class PretrainedVQVAE:
 
     def get_codebook(self):
         return self.vq_model.codebook
+
+
+class PretrainedVQVAE(BaseVQVAE):
+    #pretrained loader
+    def __init__(self,
+                input_length,
+                config,
+                contrastive=False):
+        super().__init__(input_length, config)
+        
+        #grabbing pretrained models:
+        dataset_name = config['dataset']['dataset_name']
+        if contrastive:
+            self.load(self.encoder, get_root_dir().joinpath('saved_models'), f'contrastive_encoder-{dataset_name}.ckpt')
+            self.load(self.decoder, get_root_dir().joinpath('saved_models'), f'contrastive_decoder-{dataset_name}.ckpt')
+            self.load(self.vq_model, get_root_dir().joinpath('saved_models'), f'contrastive_vq_model-{dataset_name}.ckpt')
+        else:
+            self.load(self.encoder, get_root_dir().joinpath('saved_models'), f'encoder-{dataset_name}.ckpt')
+            self.load(self.decoder, get_root_dir().joinpath('saved_models'), f'decoder-{dataset_name}.ckpt')
+            self.load(self.vq_model, get_root_dir().joinpath('saved_models'), f'vq_model-{dataset_name}.ckpt')
+
+
+    def load(self, model, dirname, fname):
+        """
+        model: instance
+        path_to_saved_model_fname: path to the ckpt file (i.e., trained model)
+        """
+        try:
+            model.load_state_dict(torch.load(dirname.joinpath(fname)))
+            print(f"{fname} loaded..")
+        except FileNotFoundError:
+            print(fname + ". Not found..")
+            dirname = Path(tempfile.gettempdir())
+            model.load_state_dict(torch.load(dirname.joinpath(fname)))
+    
+
+    def forward(self, x):
+        xf = time_to_timefreq(x, self.n_fft, x.shape[1])
+        z = self.encoder(xf)
+        z_q, _, _, _ = quantize(z, self.vq_model)
+        u = self.decoder(z_q)
+        x_hat = timefreq_to_time(u, self.n_fft, x.shape[1])
+        return x_hat.detach()
+    
+    def validate(self, data_loader):
+        #checking mean absolute error for each ts in data_loader
+        dataloader_iterator = iter(data_loader)
+        number_of_batches = len(data_loader)
+
+        mae = []
+        for i in range(number_of_batches):
+            try:
+                x, y = next(dataloader_iterator)
+            except StopIteration:
+                dataloader_iterator = iter(data_loader)
+                x, y = next(dataloader_iterator)
+            
+            x_hat = self.forward(x)
+            print(x_hat.shape)
+            for i in range(len(x)):
+                #checking each ts
+                mae.append(
+                    metrics.mean_absolute_error(x[i], x_hat[i])
+                )
+        return mae
+
+
