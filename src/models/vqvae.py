@@ -204,19 +204,7 @@ class VQVAE(BaseModel):
         return loss_hist
 
 
-"""
-class ContrastiveLoss(torch.nn.Module):
-    def __init__(self, margin=1.0):
-        super(ContrastiveLoss, self).__init__()
-        self.margin = margin
-
-    def forward(self, output1, output2, target):
-        euclidean_distance = F.pairwise_distance(output1, output2)
-        loss_contrastive = torch.mean((1 - target) * torch.pow(euclidean_distance, 2) +
-                                      target * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
-        return loss_contrastive
-"""
-class ContrastiveVQVAE(BaseModel):
+class ConVQVAE(BaseModel):
     def __init__(self,
                  input_length,
                  config: dict,
@@ -247,7 +235,8 @@ class ContrastiveVQVAE(BaseModel):
             self.fcn.eval()
             freeze(self.fcn)
 
-        self.contrastive_loss_func = ContrastiveLoss()
+        self.contrastive_criterion = ContrastiveLoss()
+        #https://kevinmusgrave.github.io/pytorch-metric-learning/losses/#contrastiveloss
 
     def forward(self, batch):      
         x, y = batch
@@ -268,14 +257,21 @@ class ContrastiveVQVAE(BaseModel):
         z = self.encoder(u)
 
         # ---> Contrastive loss <----
-        
+        """
         contrastive_loss = self.contrastive_loss_func(
             z.view(z.shape[0], -1), 
             torch.flatten(y, start_dim=0)
         )
+        """
+        #contrastive_loss = self.contrastive_criterion(
+        #    z.view(z.shape[0], -1), torch.flatten(y, start_dim=0)
+        #)
 
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)
-
+        
+        contrastive_loss = self.contrastive_criterion(
+            torch.flatten(z_q, start_dim=1), torch.flatten(y, start_dim=0)
+        )
 
         uhat = self.decoder(z_q)
         xhat = timefreq_to_time(uhat, self.n_fft, C)

@@ -4,7 +4,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.vqvae import VQVAE, ContrastiveVQVAE
+from src.models.vqvae import VQVAE, ConVQVAE
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
@@ -26,7 +26,7 @@ def train_VQVAE(config: dict,
 
     input_length = train_data_loader.dataset.X.shape[-1]
     #train_model = VQVAE(input_length, config, len(train_data_loader.dataset))
-    if contrastive: train_model = ContrastiveVQVAE(input_length, config, len(train_data_loader.dataset))
+    if contrastive: train_model = ConVQVAE(input_length, config, len(train_data_loader.dataset))
     else: train_model = VQVAE(input_length, config, len(train_data_loader.dataset))
 
     wandb_logger = WandbLogger(project=project_name, name=None, config=config)
