@@ -3,11 +3,12 @@ import torch
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import umap
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
-
+from sklearn.decomposition import PCA
 
 from src.utils import (
     UMAP_wrapper, PCA_wrapper, UMAP_plots
@@ -25,9 +26,7 @@ def run_tests(Z, y, n_runs, embed, test_size, concatenate, scale=True):
                 'lda': np.zeros(n_runs), 'lda_pca': np.zeros(n_runs), 'lda_umap': np.zeros(n_runs)}
 
         if concatenate:
-            Zs = np.concatenate(Z, axis=0)
-            Zs = StandardScaler().fit_transform(Zs) if scale else Zs
-            ys = np.concatenate(y, axis=0)
+            Z = StandardScaler().fit_transform(Z) if scale else Z
         else:
             Ztr, Zts = Z
             ytr, yts = y
@@ -39,7 +38,7 @@ def run_tests(Z, y, n_runs, embed, test_size, concatenate, scale=True):
 
         for i in tqdm(range(n_runs)):
             if concatenate:
-                Ztr, Zts, ytr, yts = train_test_split(Zs, ys, test_size=test_size)
+                Ztr, Zts, ytr, yts = train_test_split(Z, y, test_size=test_size)
             
             results = supervised_test(Ztr, Zts, ytr, yts, embed=embed)
             
@@ -76,54 +75,70 @@ class RepTester:
     def get_y(self): 
         ytr = self.train_data_loader.dataset.Y.flatten().astype(int)
         yts = self.test_data_loader.dataset.Y.flatten().astype(int)
+        if self.concatenate: return np.concatenate((ytr, yts), axis=0)
         return ytr, yts
 
-    def max_pooled_zqs(self, kernel, stride, conc=True):
+    def max_pooled_zqs(self, kernel, stride):
         zqs_train = self.VQVAE.get_max_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
         zqs_train = torch.flatten(zqs_train, start_dim = 1).numpy()
         zqs_test = self.VQVAE.get_max_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
         zqs_test = torch.flatten(zqs_test, start_dim = 1).numpy()
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
     
-    def avg_pooled_zqs(self, kernel, stride, conc=True):
+    def avg_pooled_zqs(self, kernel, stride):
         zqs_train = self.VQVAE.get_avg_pooled_zqs(self.train_data_loader, kernel_size=kernel, stride=stride)
         zqs_train = torch.flatten(zqs_train, start_dim = 1).numpy()
         zqs_test = self.VQVAE.get_avg_pooled_zqs(self.test_data_loader, kernel_size=kernel, stride=stride)
         zqs_test = torch.flatten(zqs_test, start_dim = 1).numpy()
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
     
-    def global_avg_pooled_zqs(self, conc=True):
+    def global_avg_pooled_zqs(self):
         zqs_train = self.VQVAE.get_global_avg_pooled_zqs(self.train_data_loader)
         zqs_test = self.VQVAE.get_global_avg_pooled_zqs(self.test_data_loader)
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
 
     def global_max_pooled_zqs(self):
         zqs_train = self.VQVAE.get_global_max_pooled_zqs(self.train_data_loader)
         zqs_test = self.VQVAE.get_global_max_pooled_zqs(self.test_data_loader)
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
 
     def flatten_zqs(self):
         zqs_train, _ = self.VQVAE.get_flatten_zqs_s(self.train_data_loader)
         zqs_test, _ = self.VQVAE.get_flatten_zqs_s(self.test_data_loader)
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
     
     def conv2d_zqs(self, in_channels, out_channels, kernel_size, stride, padding):
         zqs_train = self.VQVAE.get_conv2d_zqs(self.train_data_loader, in_channels, out_channels, kernel_size, stride, padding).numpy()
         zqs_test = self.VQVAE.get_conv2d_zqs(self.test_data_loader, in_channels, out_channels, kernel_size, stride, padding).numpy()
+        if self.concatenate: return np.concatenate((zqs_train, zqs_test), axis=0)
         return zqs_train, zqs_test
     
-    def zqs_indicies(self):
+    def flatten_zqs_indicies(self):
         _, s_train = self.VQVAE.get_flatten_zqs_s(self.train_data_loader)
-        _, s_test = self.VQVAE.get_flatten_zqs_s(self.test)
+        _, s_test = self.VQVAE.get_flatten_zqs_s(self.test_data_loader)
+        if self.concatenate: return np.concatenate((s_train, s_test), axis=0)
         return s_train, s_test
     
     # ---- Tests -----
-    def test_flatten(self, n_runs = None, embed=False, scale=True, test_size = 0.2):
+    def test_flatten_zqs(self, n_runs = None, embed=False, scale=True, test_size = 0.2):
         """
         Runs n_runs of supervised_tests on flatten zqs.
         """
         y = self.get_y()
         Z = self.flatten_zqs()
+        if n_runs:
+            return run_tests(Z, y, n_runs, embed=embed, test_size=test_size, scale=scale, concatenate=self.concatenate)
+        else:
+            return single_test(Z, y, embed=embed, test_size=test_size, scale=scale, concatenate=self.concatenate)
+
+    def test_flatten_s(self, n_runs = None, embed = False, scale=True, test_size=0.2):
+        y = self.get_y()
+        Z = self.flatten_zqs_indicies()
         if n_runs:
             return run_tests(Z, y, n_runs, embed=embed, test_size=test_size, scale=scale, concatenate=self.concatenate)
         else:
@@ -185,6 +200,21 @@ class RepTester:
         else:
             return single_test(Z, y, embed=embed, test_size=test_size, scale=scale, concatenate=self.concatenate)
     
+    def test_intristic_dimension(self):
+        flatten_zqs = self.flatten_zqs()
+        if not self.concatenate: flatten_zqs(flatten_zqs, axis=0)
+        pca = PCA(n_components=flatten_zqs.shape[0])
+        pca.fit(flatten_zqs)
+        
+        explained_variance = pca.explained_variance_ratio_
+
+        # Determine the intrinsic dimension by analyzing the explained variance
+        cumulative_variance = np.cumsum(explained_variance)
+        intrinsic_dim = np.argmax(cumulative_variance >= 0.95) + 1  # Set your threshold
+
+        return intrinsic_dim
+    
+
 
 def plot_results(results, title="", embed=False):
     """
@@ -222,7 +252,7 @@ def plot_multiple_results(results, labels, title="", embed=False):
     """
     plt.style.use("fivethirtyeight")
 
-    f, ax = plt.subplots(1,3, figsize=(20,20))
+    f, ax = plt.subplots(1,3, figsize=(10,10))
 
     for i in range(len(results)):
         res = results[i]
@@ -235,5 +265,26 @@ def plot_multiple_results(results, labels, title="", embed=False):
             ax[j].set_title(k)
             ax[j].plot([mean for _ in range(len(res[k]))], '--', c='grey')
             j+=1
+    f.legend()
+    plt.show()
+
+def UMAP_plots(zqs_list, y_list, labels, ncomps=2):
+    embs = [umap.UMAP(densmap=True, n_components=ncomps).fit_transform(zqs_list[i]) for i in range(len(zqs_list))]
+
+    f, ax = plt.subplots(1, len(zqs_list))
+    for i in range(len(embs)):
+        emb = embs[i]; y = y_list[i]
+        ax[i].scatter(emb[:,0], emb[:,1], c=y, label=labels[i])
+    f.legend()
+    plt.show()
+
+def PCA_plots(zqs_list, y_list, labels, ncomps=2):
+    embs = [PCA(n_components=2).fit_transform(zq) for zq in zqs_list]
+
+    f, ax = plt.subplots(1, len(zqs_list))
+    for i in range(len(embs)):
+        emb = embs[i]; y = y_list[i]
+        ax[i].scatter(emb[:,0], emb[:,1], c=y)
+        ax[i].set_title(labels[i])
     f.legend()
     plt.show()

@@ -35,3 +35,6 @@ VQVAE:
   emb_dropout: 0.
   perceptual_loss_weight: 0
 
+classnet:
+  epocs: 1000
+

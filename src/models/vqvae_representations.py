@@ -82,6 +82,47 @@ class BaseVQVAE:
         z_q, indices, vq_loss, perplexity = quantize(z, vq_model)  # (b c h w), (b (h w) h), ...
         return z_q, indices
 
+    
+    def forward(self, x):
+        u = time_to_timefreq(x, self.n_fft, x.shape[1])
+        z = self.encoder(u)
+        if not self.decoder.is_upsample_size_updated:
+                self.decoder.register_upsample_size(torch.IntTensor(np.array(u.shape[2:])))
+        z_q, _, _, _ = quantize(z, self.vq_model)
+        u_hat = self.decoder(z_q)
+        x_hat = timefreq_to_time(u_hat, self.n_fft, x.shape[1])
+        return x_hat.detach()
+    
+    def validate(self, data_loader):
+        #checking mean absolute error for each ts in data_loader
+        dataloader_iterator = iter(data_loader)
+        number_of_batches = len(data_loader)
+
+        mae = []
+        plot = np.array([False] * number_of_batches)
+        plot[np.random.randint(0, number_of_batches)] = True
+
+        for i in range(number_of_batches):
+            try:
+                x, y = next(dataloader_iterator)
+            except StopIteration:
+                dataloader_iterator = iter(data_loader)
+                x, y = next(dataloader_iterator)
+            
+            x_hat = self.forward(x)
+            for j in range(len(x)):
+                #checking each ts
+                mae.append(
+                    metrics.mean_absolute_error(x[j], x_hat[j])
+                )
+                if plot[i]:
+                    plot[i] = False
+                    f, a = plt.subplots()
+                    a.plot(x[j].squeeze().numpy(), label="x")
+                    a.plot(x_hat[j].squeeze().numpy(), label="x_hat")
+                    plt.show()
+
+        return mae
 
     # ---- discrete latent variable extraction ----
     def run_through_encoder_codebook(self, data_loader, flatten=False, max_pool=False):
@@ -154,6 +195,7 @@ class BaseVQVAE:
 
     def get_codebook(self):
         return self.vq_model.codebook
+    
 
 
 class PretrainedVQVAE(BaseVQVAE):
@@ -189,35 +231,3 @@ class PretrainedVQVAE(BaseVQVAE):
             dirname = Path(tempfile.gettempdir())
             model.load_state_dict(torch.load(dirname.joinpath(fname)))
     
-
-    def forward(self, x):
-        xf = time_to_timefreq(x, self.n_fft, x.shape[1])
-        z = self.encoder(xf)
-        z_q, _, _, _ = quantize(z, self.vq_model)
-        u = self.decoder(z_q)
-        x_hat = timefreq_to_time(u, self.n_fft, x.shape[1])
-        return x_hat.detach()
-    
-    def validate(self, data_loader):
-        #checking mean absolute error for each ts in data_loader
-        dataloader_iterator = iter(data_loader)
-        number_of_batches = len(data_loader)
-
-        mae = []
-        for i in range(number_of_batches):
-            try:
-                x, y = next(dataloader_iterator)
-            except StopIteration:
-                dataloader_iterator = iter(data_loader)
-                x, y = next(dataloader_iterator)
-            
-            x_hat = self.forward(x)
-            print(x_hat.shape)
-            for i in range(len(x)):
-                #checking each ts
-                mae.append(
-                    metrics.mean_absolute_error(x[i], x_hat[i])
-                )
-        return mae
-
-

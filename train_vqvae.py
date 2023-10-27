@@ -4,12 +4,13 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.vqvae import VQVAE, ConVQVAE
+from src.models.vqvae import VQVAE, ConVQVAE, SupConVQVAE
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 from src.utils import save_model
 
+import numpy as np
 
 def train_VQVAE(config: dict,
                  train_data_loader: DataLoader,
@@ -25,9 +26,12 @@ def train_VQVAE(config: dict,
         project_name += f'-{wandb_project_case_idx}'
 
     input_length = train_data_loader.dataset.X.shape[-1]
-    #train_model = VQVAE(input_length, config, len(train_data_loader.dataset))
-    if contrastive: train_model = ConVQVAE(input_length, config, len(train_data_loader.dataset))
+    train_model = VQVAE(input_length, config, len(train_data_loader.dataset))
+    if contrastive: train_model = SupConVQVAE(input_length, config, len(train_data_loader.dataset))
     else: train_model = VQVAE(input_length, config, len(train_data_loader.dataset))
+
+    #n_classes = len(np.unique(train_data_loader.dataset.Y.flatten()))
+    #train_model = FPVQVAE(input_length, config, len(train_data_loader.dataset), n_classes)
 
     wandb_logger = WandbLogger(project=project_name, name=None, config=config)
     trainer = pl.Trainer(logger=wandb_logger,
@@ -52,14 +56,19 @@ def train_VQVAE(config: dict,
     wandb.finish()
 
     print('saving the models...')
+    
     if contrastive:
         save_model({'contrastive_encoder': train_model.encoder,
                     'contrastive_decoder': train_model.decoder,
                     'contrastive_vq_model': train_model.vq_model,
                     }, id=config['dataset']['dataset_name'])
-
+    else:
+        save_model({'encoder': train_model.encoder,
+                    'decoder': train_model.decoder,
+                    'vq_model': train_model.vq_model,
+                    }, id=config['dataset']['dataset_name'])
     #trainer.validate(train_model)
-
+    
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file
 
