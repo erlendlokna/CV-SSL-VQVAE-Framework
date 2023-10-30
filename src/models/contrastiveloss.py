@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 #code taken from: https://github.com/HobbitLong/SupContrast/blob/master/losses.py#L11
 
 
@@ -90,4 +91,26 @@ class SupConLoss(nn.Module):
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
         loss = loss.view(anchor_count, batch_size).mean()
 
+        return loss
+    
+class NTXentLoss(nn.Module):
+    def __init__(self, temperature):
+        super(NTXentLoss, self).__init__()
+        self.temperature = temperature
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, zis, zjs):
+        # Normalize embeddings
+        zis = F.normalize(zis, dim=1, p=2)
+        zjs = F.normalize(zjs, dim=1, p=2)
+        
+        # Compute cosine similarities
+        sim_ij = torch.sum(zis * zjs, dim=-1) / self.temperature
+        sim_ji = torch.sum(zjs * zis, dim=-1) / self.temperature
+
+        # Create labels for contrastive loss
+        labels = torch.arange(len(zis)).to(zis.device)
+        
+        # Compute loss
+        loss = self.criterion(sim_ij, labels) + self.criterion(sim_ji, labels)
         return loss

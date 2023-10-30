@@ -19,7 +19,8 @@ import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from pytorch_metric_learning.losses import ContrastiveLoss
-from src.models.contrastiveloss import SupConLoss
+#from src.models.contrastiveloss import NTXentLoss
+from pytorch_metric_learning.losses import NTXentLoss
 from pathlib import Path
 import tempfile
 
@@ -406,7 +407,7 @@ class ConVQVAE(BaseModel):
         detach_the_unnecessary(loss_hist)
         return loss_hist
 
-class SupConVQVAE(BaseModel):
+class NTX_VQVAE(BaseModel):
     def __init__(self,
                  input_length,
                  config: dict,
@@ -437,7 +438,7 @@ class SupConVQVAE(BaseModel):
             self.fcn.eval()
             freeze(self.fcn)
 
-        self.conloss = SupConLoss()
+        self.conloss = NTXentLoss(temperature=0.07)
 
     
     def forward(self, batch):      
@@ -471,11 +472,28 @@ class SupConVQVAE(BaseModel):
 
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)
         
-        z_q_con_normalized = F.normalize(z_q.view(z_q.shape[0], z_q.shape[1], -1))
-        y_flat = torch.flatten(y, start_dim=0)
-        mask = torch.eq(y_flat.view(-1, 1), y_flat.view(1, -1))
+        """
+        # Get the dimensions of 'z_q'
+        batch_size, sequence_length, embedding_dim, codebook_size = z_q.size()
 
-        contrastive_loss = self.conloss(features=z_q_con_normalized, labels=y_flat, mask=mask)
+        # Reshape 'z_q' for easy manipulation
+        z_q_c = z_q.reshape(batch_size, -1, codebook_size)  # Reshaped to (batch_size, sequence_length * embedding_dim, codebook_size)
+        z_q_c = F.normalize(z_q_c, dim=2, p=2)
+        # Shuffle the 'z_q' tensor along the batch dimension (create 'z_q2')
+        z_q2 = z_q_c[torch.randperm(batch_size)]
+
+        # Create 'z_q1' by duplicating 'z_q'
+        z_q1 = z_q_c
+
+        contrastive_loss = self.conloss(z_q1, z_q2)
+        """
+
+        batch_size, sequence_length, embedding_dim, codebook_size = z_q.size()
+
+        # Reshape 'z_q' for easy manipulation
+        z_qc = torch.flatten(z_q, start_dim=1)
+
+        contrastive_loss = self.conloss(z_qc, torch.flatten(y, start_dim=0))
 
         uhat = self.decoder(z_q)
         xhat = timefreq_to_time(uhat, self.n_fft, C)

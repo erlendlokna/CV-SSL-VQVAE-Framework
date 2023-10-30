@@ -131,6 +131,7 @@ class RepTester:
         """
         y = self.get_y()
         Z = self.flatten_zqs()
+        print(Z.shape)
         if n_runs:
             return run_tests(Z, y, n_runs, embed=embed, test_size=test_size, scale=scale, concatenate=self.concatenate)
         else:
@@ -274,7 +275,8 @@ def UMAP_plots(zqs_list, y_list, labels, ncomps=2):
     f, ax = plt.subplots(1, len(zqs_list))
     for i in range(len(embs)):
         emb = embs[i]; y = y_list[i]
-        ax[i].scatter(emb[:,0], emb[:,1], c=y, label=labels[i])
+        ax[i].scatter(emb[:,0], emb[:,1], c=y)
+        ax[i].set_title(labels[i])
     f.legend()
     plt.show()
 

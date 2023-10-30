@@ -25,12 +25,12 @@ if __name__ == "__main__":
 
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    model1 = PretrainedVQVAE(input_length, config)
+    model1 = PretrainedVQVAE(input_length, config, contrastive=True)
     model2 = BaseVQVAE(input_length, config)
     #validation:
     print("Validation of VQVAEs:")
-    print("MEA on test_data_loader:", np.mean(model1.validate(test_data_loader)))
-    print("MEA on test_data_loader:", np.mean(model2.validate(test_data_loader)))
+    print("1) MEA on test_data_loader:", np.mean(model1.validate(test_data_loader)))
+    print("2) MEA on test_data_loader:", np.mean(model2.validate(test_data_loader)))
 
     print("Performing representation tests:")
     tester1 = RepTester(model1, train_data_loader, test_data_loader, concatenate_zqs=True)
@@ -38,19 +38,25 @@ if __name__ == "__main__":
     
     
     print("Intrinstic dimensions:")
-    print("trained:",tester1.test_intristic_dimension())
-    print("untrained", tester2.test_intristic_dimension())
+    print("1):",tester1.test_intristic_dimension())
+    print("2)", tester2.test_intristic_dimension())
 
 
-    test1 = tester1.test_flatten_zqs(n_runs=20)#embed: tests classifiers on PCA and UMAP embeddings
     test2 = tester2.test_flatten_zqs(n_runs=20)
+    test1 = tester1.test_flatten_zqs(n_runs=20)#embed: tests classifiers on PCA and UMAP embeddings
+
 
     print("PCA plots:")
     PCA_plots(
         [tester1.flatten_zqs(), tester2.flatten_zqs()],
         [tester1.get_y(), tester2.get_y()],
-        ["trained", "non-trained"]
+        ["1", "2"]
     )
 
-    #plot_results(test, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
-    plot_multiple_results([test1, test2], ["trained", "untrained"])
+    UMAP_plots(
+        [tester1.flatten_zqs(), tester2.flatten_zqs()],
+        [tester1.get_y(), tester2.get_y()],
+        ["1", "2"]
+    )
+    #plot_results(test2, embed=False, title=f"{config['dataset']['dataset_name']}(flatten)")
+    plot_multiple_results([test1, test2], ["1", "2"])
