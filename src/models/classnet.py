@@ -49,14 +49,29 @@ class CNNClassNet(nn.Module):
         x = self.fc2(x)
         
         return x
+    
+    def predict(self,x):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float)
+        p=self.forward(x)
+        pred=p.argmax(dim=-1)
+        return pred
 
+def check_type(train_zqs):
+    if isinstance(train_zqs, np.ndarray):
+        train_zqs = torch.tensor(train_zqs, dtype=torch.float)
+        if len(train_zqs.shape) > 2:
+            train_zqs = torch.flatten(train_zqs, start_dim=1)
+    elif len(train_zqs.shape) > 2:
+        train_zqs = torch.flatten(train_zqs, start_dim=1)
+    return train_zqs
 class ClassNet(nn.Module):
-    def __init__(self, z_shape):
+    def __init__(self, input_length, num_classes):
         super(ClassNet, self).__init__()
-        self.fc1= nn.Linear(z_shape[0], z_shape[1])
-        self.bn=nn.BatchNorm1d(z_shape[1])
+        self.fc1= nn.Linear(input_length, 300)
+        self.bn=nn.BatchNorm1d(300)
         self.dropout=nn.Dropout(0,1)
-        self.fc2 = nn.Linear(z_shape[1], 10)
+        self.fc2 = nn.Linear(300, num_classes)
         self.optimizer = optim.Adam(self.parameters(), lr=1e-3)
 
     def forward(self,x):
@@ -65,7 +80,9 @@ class ClassNet(nn.Module):
         return torch.log_softmax(h,dim=-1)
 
     def predict(self,x):
+        x = check_type(x)
         p=self.forward(x)
         pred=p.argmax(dim=-1)
         return pred
-    
+
+

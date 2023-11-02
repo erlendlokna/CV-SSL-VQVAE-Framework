@@ -18,6 +18,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch
+from torch import nn
+from torch.nn import init
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -71,15 +73,15 @@ class BaseVQVAE:
         self.vq_model = VectorQuantize(dim, config['VQVAE']['codebook']['size'], **config['VQVAE'])
         self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
     
-    def encode_to_z_q(self, x, encoder: VQVAEEncoder, vq_model: VectorQuantize):
+    def encode_to_z_q(self, x):
         """
         x: (B, C, L)
         """
         C = x.shape[1]
         xf = time_to_timefreq(x, self.n_fft, C)  # (B, C, H, W)
         
-        z = encoder(xf)  # (b c h w)
-        z_q, indices, vq_loss, perplexity = quantize(z, vq_model)  # (b c h w), (b (h w) h), ...
+        z = self.encoder(xf)  # (b c h w)
+        z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)  # (b c h w), (b (h w) h), ...
         return z_q, indices
 
     
@@ -93,7 +95,7 @@ class BaseVQVAE:
         x_hat = timefreq_to_time(u_hat, self.n_fft, x.shape[1])
         return x_hat.detach()
     
-    def validate(self, data_loader):
+    def validate(self, data_loader, vizualise=True):
         #checking mean absolute error for each ts in data_loader
         dataloader_iterator = iter(data_loader)
         number_of_batches = len(data_loader)
@@ -115,7 +117,7 @@ class BaseVQVAE:
                 mae.append(
                     metrics.mean_absolute_error(x[j], x_hat[j])
                 )
-                if plot[i]:
+                if plot[i] and vizualise:
                     plot[i] = False
                     f, a = plt.subplots()
                     a.plot(x[j].squeeze().numpy(), label="x")
@@ -140,7 +142,7 @@ class BaseVQVAE:
                 dataloader_iterator = iter(data_loader)
                 x, y = next(dataloader_iterator)
             
-            z_q, s = self.encode_to_z_q(x, self.encoder, self.vq_model)
+            z_q, s = self.encode_to_z_q(x)
 
             for i, zq_i in enumerate(z_q):    
                 zqs_list.append(zq_i.detach().tolist())
@@ -230,4 +232,32 @@ class PretrainedVQVAE(BaseVQVAE):
             print(fname + ". Not found..")
             dirname = Path(tempfile.gettempdir())
             model.load_state_dict(torch.load(dirname.joinpath(fname)))
+
+def randomize_model(model):
+        def weights_init(m):
+            if hasattr(m, 'weight') and (isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)) or isinstance(m, nn.Linear)):
+                init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+
+        model.apply(weights_init)
+
+        for module in model.modules():
+            if isinstance(module, nn.BatchNorm2d):
+                init.constant_(module.weight, 1)
+                init.constant_(module.bias, 0)
+                init.constant_(module.running_mean, 0)
+                init.constant_(module.running_var, 1)
+        
+        return model
+class RandomInitVQVAE(BaseVQVAE):
+    def __init__(self,
+                input_length,
+                config,
+                contrastive=False):
+        super().__init__(input_length, config)
+
+        self.encoder = randomize_model(self.encoder)
+        self.decoder = randomize_model(self.decoder)
+
     
