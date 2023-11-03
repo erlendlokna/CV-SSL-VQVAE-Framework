@@ -430,7 +430,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
         recons_loss, vq_loss, perplexity, barrow_twins_loss = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + barrow_twins_loss
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + 0.01 * barrow_twins_loss
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
