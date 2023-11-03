@@ -4,7 +4,7 @@ import numpy as np
 
 
 
-class Pooling:
+class LatentDataHandler:
     #Tester class for VQVAE's zqs. 
     def __init__(self, VQVAE,
                  train_data_loader, test_data_loader, 

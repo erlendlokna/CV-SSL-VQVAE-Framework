@@ -2,9 +2,13 @@ from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 
-from src.models.vqvae_representations import PretrainedVQVAE, RandomInitVQVAE
-from src.experiments.pooling import Pooling
-from src.experiments.tests import knn_test, svm_test, intristic_dimension, classnet_test, multiple_tests, plot_tests
+from src.preprocessing.preprocess_ucr import UCRDataset
+from discrete_latents import PretrainedLatents, RandomInitLatents
+from src.experiments.datahandler import LatentDataHandler
+from src.experiments.tests import (knn_test, svm_test,
+                                intristic_dimension, classnet_test,
+                                multiple_tests, plot_tests,
+                                pca_plots, umap_plots, tsne_plot)
 import sys
 import numpy as np
 
@@ -41,28 +45,32 @@ def test_representations():
 
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    model1 = PretrainedVQVAE(input_length, config, contrastive=True)
-    model2 = PretrainedVQVAE(input_length, config)
-    model3 = RandomInitVQVAE(input_length, config)
+    #model1 = PretrainedLatents(input_length, config, contrastive=True)
+    model2 = PretrainedLatents(input_length, config)
+    model3 = RandomInitLatents(input_length, config)
 
     print("Validation of VQVAEs...")
-    print("1) MEA on test_data_loader:", np.mean(model1.validate(test_data_loader, vizualise=False)))
+    #print("1) MEA on test_data_loader:", np.mean(model1.validate(test_data_loader, vizualise=False)))
     print("2) MEA on test_data_loader:", np.mean(model2.validate(test_data_loader, vizualise=False)))
     print("3) MEA on test_data_loader:", np.mean(model3.validate(test_data_loader, vizualise=False)))
     
-    pooler1 = Pooling(model1, train_data_loader, test_data_loader, concatenate_zqs=True)
-    pooler2 = Pooling(model2, train_data_loader, test_data_loader, concatenate_zqs=True)
-    pooler3 = Pooling(model3, train_data_loader, test_data_loader, concatenate_zqs=True)
+    #latent1 = LatentDataHandler(model1, train_data_loader, test_data_loader, concatenate_zqs=True)
+    latent2 = LatentDataHandler(model2, train_data_loader, test_data_loader, concatenate_zqs=True)
+    latent3 = LatentDataHandler(model3, train_data_loader, test_data_loader, concatenate_zqs=True)
 
     print("Intristic dimensions...")
-    print(f"1) {intristic_dimension(pooler1.zqs(flatten=True))}")
-    print(f"2) {intristic_dimension(pooler2.zqs(flatten=True))}")
-    print(f"3) {intristic_dimension(pooler3.zqs(flatten=True))}")
+    #print(f"1) {intristic_dimension(latent1.zqs(flatten=True))}")
+    print(f"2) {intristic_dimension(latent2.zqs(flatten=True))}")
+    print(f"3) {intristic_dimension(latent3.zqs(flatten=True))}")
 
     print("Testing probes...")
-    results, labels = probe_tests(pooler3, knn=True, svm=True, classnet=True, cnnclassnet=True, n_runs=100)
-    plot_tests(results, labels)
+    #results, labels = probe_tests(pooler3, knn=True, svm=True, classnet=True, cnnclassnet=True, n_runs=100)
+    #plot_tests(results, labels)
 
+    print("Plots...")
+    #tsne_plot(latent1.zqs(flatten=True), latent1.get_y())
+    tsne_plot(latent2.zqs(flatten=True), latent2.get_y())
+    tsne_plot(latent3.zqs(flatten=True), latent3.get_y())
 
 
 if __name__ == "__main__": 

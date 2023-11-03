@@ -11,6 +11,8 @@ from pathlib import Path
 For non linear probes. Not yet finished
 """
 
+
+
 class CNNClassNet(nn.Module):
     def __init__(self, input_channels, input_height, input_width, num_classes=2, hidden_size=200, dropout_rate=0.1):
         super().__init__()
@@ -84,5 +86,3 @@ class ClassNet(nn.Module):
         p=self.forward(x)
         pred=p.argmax(dim=-1)
         return pred
-
-

@@ -33,28 +33,8 @@ from pathlib import Path
 import tempfile
 from tqdm import tqdm
 
-def remap_clusters(true_labels, cluster_labels):
-    """
-    Function for remapping labels from the zeroshot classifier to the most
-    frequent labels in the true labels.
-    """
-    unique_clusters = np.unique(cluster_labels)
-    mapping = {}
-    
-    for cluster in unique_clusters:
-        # Find the most frequent true label in this cluster
-        true_label_counts = np.bincount(true_labels[cluster_labels == cluster])
-        most_frequent_true_label = np.argmax(true_label_counts)
-        
-        # Map cluster label to most frequent true label
-        mapping[cluster] = most_frequent_true_label
-    
-    # Remap cluster labels
-    remapped_labels = np.vectorize(lambda x: mapping[x])(cluster_labels)
-    
-    return remapped_labels
 
-class BaseVQVAE:
+class Base:
     #Untrained instance
     def __init__(self,
                 input_length,
@@ -199,8 +179,7 @@ class BaseVQVAE:
         return self.vq_model.codebook
     
 
-
-class PretrainedVQVAE(BaseVQVAE):
+class PretrainedLatents(Base):
     #pretrained loader
     def __init__(self,
                 input_length,
@@ -250,7 +229,8 @@ def randomize_model(model):
                 init.constant_(module.running_var, 1)
         
         return model
-class RandomInitVQVAE(BaseVQVAE):
+
+class RandomInitLatents(Base):
     def __init__(self,
                 input_length,
                 config,

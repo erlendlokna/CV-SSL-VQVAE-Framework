@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder
 import math
 from src.utils import get_root_dir, download_ucr_datasets
+from src.preprocessing.augmentations import Augmentations
 import tarfile
 import os
 
@@ -19,7 +20,7 @@ class UCRDatasetImporter(object):
         :param dataset_name: e.g., "ElectricDevices"
         :param data_scaling
         """
-        download_ucr_datasets()
+        #download_ucr_datasets()
         self.data_root = get_root_dir().joinpath("data", "UCRArchive_2018", dataset_name)
 
         # fetch an entire dataset
@@ -86,4 +87,71 @@ class UCRDataset(Dataset):
     def __len__(self):
         return self._len
 
+class AugUCRDataset(Dataset):
+    def __init__(self,
+                kind: str,
+                dataset_importer: UCRDatasetImporter,
+                augs: Augmentations,
+                used_augmentations: list,
+                subseq_lens: list,
+                **kwargs):
+        """
+        :param kind: "train" / "test"
+        :param dataset_importer: instance of the `DatasetImporter` class.
+        :param augs: instance of the `Augmentations` class.
+        :param used_augmentations: e.g., ["RC", "AmpR", "Vshift"]
+        :param subseq_lens: determines a number of (subx1, subx2) pairs with `subseq_len` for `RC`.
+        """
+        super().__init__()
+        self.kind = kind
+        self.augs = augs
+        self.used_augmentations = used_augmentations if kind == "train" else []
+        self.subseq_lens = subseq_lens
 
+        if kind == "train":
+            self.X, self.Y = dataset_importer.X_train, dataset_importer.Y_train
+        elif kind == "test":
+            self.X, self.Y = dataset_importer.X_test, dataset_importer.Y_test
+        else:
+            raise ValueError
+
+        self._len = self.X.shape[0]
+
+
+    @staticmethod
+    def _assign_float32(*xs):
+        """
+        assigns `dtype` of `float32`
+        so that we wouldn't have to change `dtype` later before propagating data through a model.
+        """
+        new_xs = []
+        for x in xs:
+            new_xs.append(x.astype(np.float32))
+        return new_xs[0] if (len(xs) == 1) else new_xs
+
+    def getitem_default(self, idx):
+        x, y = self.X[idx, :], self.Y[idx, :]
+        x = x.reshape(1, -1)  # (1 x F)
+
+        subxs_pairs = []
+        for subseq_len in self.subseq_lens:
+            subx_view1, subx_view2 = x.copy(), x.copy()
+
+            # augmentations
+            used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
+            for aug in used_augs:
+                if aug == "RC":  # random crop
+                    subx_view1, subx_view2 = self.augs.random_crop(subseq_len, subx_view1, subx_view2)
+                if aug == "AmpR":  # random amplitude resize
+                    subx_view1, subx_view2 = self.augs.amplitude_resize(subx_view1, subx_view2)
+
+            subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
+            subxs_pairs.append([subx_view1, subx_view2])
+
+        return subxs_pairs, y
+
+    def __getitem__(self, idx):
+        return self.getitem_default(idx)
+
+    def __len__(self):
+        return self._len
