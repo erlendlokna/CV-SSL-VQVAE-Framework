@@ -144,6 +144,10 @@ class AugUCRDataset(Dataset):
                     subx_view1, subx_view2 = self.augs.random_crop(subseq_len, subx_view1, subx_view2)
                 if aug == "AmpR":  # random amplitude resize
                     subx_view1, subx_view2 = self.augs.amplitude_resize(subx_view1, subx_view2)
+                if aug == "jitter":  # jittering
+                    subx_view1, subx_view2 = self.augs.jitter(subx_view1, subx_view2)
+                if aug == "warp":
+                    subx_view1, subx_view2 = self.augs.time_warp(subx_view1, subx_view2)
 
             subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
             subxs_pairs.append([subx_view1, subx_view2])

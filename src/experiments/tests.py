@@ -36,12 +36,12 @@ def classnet_test(Z_train, Z_test, y_train, y_test, CNN=False, num_epochs=200):
     preds = classnet.predict(Z_test)
     return metrics.accuracy_score(y_test, preds)
 
-def intristic_dimension(zqs):
-    pca = PCA(n_components=zqs.shape[0])
+def intristic_dimension(zqs, threshold=0.95):
+    pca = PCA(threshold)  # Set n_components to the variance threshold
     pca.fit(zqs)
     explained_variance = pca.explained_variance_ratio_
     cumulative_variance = np.cumsum(explained_variance)
-    intrinsic_dim = np.argmax(cumulative_variance >= 0.95) + 1
+    intrinsic_dim = np.argmax(cumulative_variance >= threshold) + 1
     return intrinsic_dim
 
 def multiple_tests(test, Z, Y, n_runs, CNN=False, num_epochs=None, scale=True):
@@ -59,7 +59,7 @@ def multiple_tests(test, Z, Y, n_runs, CNN=False, num_epochs=None, scale=True):
             Ztr = scaler.transform(Ztr)
             Zts = scaler.transform(Zts)
 
-    for i in tqdm(range(n_runs), disable=True):
+    for i in tqdm(range(n_runs), disable=False):
         if concatenate:
             Ztr, Zts, ytr, yts = train_test_split(Z, Y, test_size=0.2)
         
@@ -68,7 +68,6 @@ def multiple_tests(test, Z, Y, n_runs, CNN=False, num_epochs=None, scale=True):
             #Ztr = Ztr[permutation]
             #ytr = ytr[permutation]
             
-
         if num_epochs is None:
             accs[i] = test(Ztr, Zts, ytr, yts)
         else:

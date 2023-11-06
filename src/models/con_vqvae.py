@@ -22,7 +22,7 @@ from pytorch_metric_learning.losses import ContrastiveLoss
 #from src.models.contrastiveloss import NTXentLoss
 from pytorch_metric_learning.losses import NTXentLoss
 from pathlib import Path
-import tempfile
+import umap
 
 import wandb
 from src.experiments.tests import svm_test, knn_test, classnet_test, intristic_dimension, multiple_tests
@@ -412,14 +412,20 @@ class BarlowTwinsVQVAE(BaseModel):
         if self.training and r <= 0.05:
             b = np.random.randint(0, x1.shape[0])
             c = np.random.randint(0, x1.shape[1])
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(1, 2)
             plt.suptitle(f'ep_{self.current_epoch}')
-            ax.plot(x1[b, c].cpu())
-            ax.plot(xhat1[b,c].detach().cpu())
-            ax.set_title('x')
-            ax.set_ylim(-4, 4)
+            
+            ax[0].plot(x1[b, c].cpu())
+            ax[0].plot(xhat1[b,c].detach().cpu())
+            ax[0].set_title('x1')
+            ax[0].set_ylim(-4, 4)
 
-            wandb.log({"x1 vs xhat1 (training)": wandb.Image(plt)})
+            ax[1].plot(x2[b, c].cpu())
+            ax[1].plot(xhat2[b,c].detach().cpu())
+            ax[1].set_title('x2')
+            ax[1].set_ylim(-4, 4)
+
+            wandb.log({"augmented xs vs xhats": wandb.Image(plt)})
             plt.close()
 
         return recons_loss, vq_loss, perplexity, barrow_twins_loss
@@ -521,11 +527,14 @@ class BarlowTwinsVQVAE(BaseModel):
     
     # ---- Representation testing ------
     def on_train_epoch_end(self):
-        if self.current_epoch == 0:
+        if self.current_epoch % 100 == 0:
+            self.test_representations()
+        
+        if self.current_epoch < 100 and self.current_epoch % 30 == 0:
             self.test_representations()
 
     def on_train_epoch_start(self):
-        if self.current_epoch % 100 == 0:
+        if self.current_epoch == 0:
             self.test_representations()
 
     def test_representations(self):
@@ -539,8 +548,10 @@ class BarlowTwinsVQVAE(BaseModel):
 
         Z = np.concatenate((zqs_train, zqs_test), axis=0)
         Y = np.concatenate((y_train, y_test), axis=0)
-
+        print("intrinstic dimension...")
         intristic_dim = intristic_dimension(Z)
+        
+        print("probe tests...")
         svm_acc = np.mean(multiple_tests(test=svm_test, Z=(zqs_train, zqs_test), Y=(y_train, y_test), n_runs=1))
         #classnet_acc = np.mean(multiple_tests(classnet_test, (zqs_train, zqs_test), (y_train, y_test), n_runs=4))
         knn_acc = np.mean(multiple_tests(test=knn_test, Z=(zqs_train, zqs_test), Y=(y_train, y_test), n_runs=1))
@@ -551,12 +562,18 @@ class BarlowTwinsVQVAE(BaseModel):
             'knn_acc': knn_acc
         }
         wandb.log(reps)
-        
+        print("PCA...")
         embs = PCA(n_components=2).fit_transform(Z)
         f, a = plt.subplots()
         plt.suptitle(f'ep_{self.current_epoch}')
         a.scatter(embs[:, 0], embs[:, 1], c=Y)
         wandb.log({"PCA plot": wandb.Image(f)})
+        #print("UMAP...")
+        #embs = umap.UMAP(densmap=True).fit_transform(Z)
+        #f, a = plt.subplots()
+        #plt.suptitle(f'ep_{self.current_epoch}')
+        #a.scatter(embs[:, 0], embs[:, 1], c=Y)
+        #wandb.log({"UMAP plot": wandb.Image(f)})
         
 
     def run_through_encoder_codebook(self, data_loader):

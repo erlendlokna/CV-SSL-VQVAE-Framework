@@ -8,10 +8,8 @@ import tempfile
 from pathlib import Path
 
 """
-For non linear probes. Not yet finished
+Non linear probes
 """
-
-
 
 class CNNClassNet(nn.Module):
     def __init__(self, input_channels, input_height, input_width, num_classes=2, hidden_size=200, dropout_rate=0.1):

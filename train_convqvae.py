@@ -17,7 +17,6 @@ import numpy as np
 
 def train_ConVQVAE(config: dict,
                 aug_train_data_loader: DataLoader,
-                aug_test_data_loader: DataLoader,
                 train_data_loader: DataLoader,
                 test_data_loader: DataLoader,
                 do_validate: bool,
@@ -31,7 +30,8 @@ def train_ConVQVAE(config: dict,
 
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    train_model = BarlowTwinsVQVAE(input_length, non_aug_test_data_loader=test_data_loader,
+    train_model = BarlowTwinsVQVAE(input_length, 
+                                    non_aug_test_data_loader=test_data_loader,
                                     non_aug_train_data_loader=train_data_loader, 
                                     config=config, n_train_samples=len(train_data_loader.dataset))
 
@@ -46,7 +46,7 @@ def train_ConVQVAE(config: dict,
     
     trainer.fit(train_model,
                 train_dataloaders=aug_train_data_loader,
-                val_dataloaders=aug_test_data_loader if do_validate else None
+                val_dataloaders=test_data_loader if do_validate else None
                 )
     
     # additional log
@@ -76,10 +76,9 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader_non_aug, test_data_loader= [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    augmentations = ['AmpR']
+    augmentations = ['AmpR', 'jitter', 'warp']
     train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
-    train_ConVQVAE(config, aug_test_data_loader=train_data_loader_aug,
-                   aug_train_data_loader= test_data_loader,
+    train_ConVQVAE(config, aug_train_data_loader=  train_data_loader_aug,
                     train_data_loader=train_data_loader_non_aug,
                     test_data_loader=test_data_loader, do_validate=False)

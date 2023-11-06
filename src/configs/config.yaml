@@ -1,5 +1,5 @@
 dataset:
-  dataset_name: 'Symbols'
+  dataset_name: 'StarLightCurves'
   in_channels: 1
   data_scaling: True
   batch_sizes:
@@ -14,7 +14,7 @@ trainer_params:
   gpus:
     - 0
   max_epochs:
-    vqvae: 2000
+    vqvae: 1000
 
 encoder:
   dim: 64
