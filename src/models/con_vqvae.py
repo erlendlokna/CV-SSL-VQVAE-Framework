@@ -387,13 +387,14 @@ class BarlowTwinsVQVAE(BaseModel):
 
         z1 = self.encoder(u1)
         z2 = self.encoder(u2)
+
+        barlow_twins_loss_encoder = self.barlowtwinsloss(z1, z2)
+
         z_q1, indices1, vq_loss1, perplexity1 = quantize(z1, self.vq_model)
         z_q2, indices2, vq_loss2, perplexity2 = quantize(z2, self.vq_model)
 
-        
-        barrow_twins_loss = self.barlowtwinsloss(
-            z_q1, z_q2
-        )
+        barlow_twins_loss_codebook =  self.barlowtwinsloss(z_q1, z_q2)
+        barlow_twins_loss = barlow_twins_loss_encoder + barlow_twins_loss_codebook
 
         uhat1 = self.decoder(z_q1)
         uhat2 = self.decoder(z_q2)
@@ -409,7 +410,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
         # plot `x` and `xhat`
         r = np.random.rand()
-        if self.training and r <= 0.05:
+        if self.training and r <= 0.005:
             b = np.random.randint(0, x1.shape[0])
             c = np.random.randint(0, x1.shape[1])
             fig, ax = plt.subplots(1, 2)
@@ -428,15 +429,15 @@ class BarlowTwinsVQVAE(BaseModel):
             wandb.log({"augmented xs vs xhats": wandb.Image(plt)})
             plt.close()
 
-        return recons_loss, vq_loss, perplexity, barrow_twins_loss
+        return recons_loss, vq_loss, perplexity, barlow_twins_loss
     
 
     def training_step(self, batch, batch_idx):
         x = batch
 
-        recons_loss, vq_loss, perplexity, barrow_twins_loss = self.forward(x)
+        recons_loss, vq_loss, perplexity, barlow_twins_loss = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + 0.01 * barrow_twins_loss
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + 1.0* barlow_twins_loss
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
@@ -454,7 +455,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'perceptual': recons_loss['perceptual'],
 
-                     'barrow_twins_loss': barrow_twins_loss
+                     'barrow_twins_loss': barlow_twins_loss
                      }
         
         wandb.log(loss_hist)
@@ -527,7 +528,7 @@ class BarlowTwinsVQVAE(BaseModel):
     
     # ---- Representation testing ------
     def on_train_epoch_end(self):
-        if self.current_epoch % 100 == 0:
+        if self.current_epoch % 100 == 0 and self.current_epoch != 0:
             self.test_representations()
         
         if self.current_epoch < 100 and self.current_epoch % 30 == 0:

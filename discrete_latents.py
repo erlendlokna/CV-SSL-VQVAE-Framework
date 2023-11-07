@@ -64,7 +64,6 @@ class Base:
         z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)  # (b c h w), (b (h w) h), ...
         return z_q, indices
 
-    
     def forward(self, x):
         u = time_to_timefreq(x, self.n_fft, x.shape[1])
         z = self.encoder(u)

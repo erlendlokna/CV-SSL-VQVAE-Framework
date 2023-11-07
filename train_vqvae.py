@@ -4,7 +4,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.vqvae import VQVAE, cVQVAE
+from src.models.vqvae import VQVAE
 from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
@@ -16,7 +16,6 @@ def train_VQVAE(config: dict,
                  train_data_loader: DataLoader,
                  test_data_loader: DataLoader,
                  do_validate: bool,
-                 contrastive: bool,
                  wandb_project_case_idx: str = ''):
     """
     :param do_validate: if True, validation is conducted during training with a test dataset.
@@ -54,7 +53,6 @@ def train_VQVAE(config: dict,
 
     print('saving the models...')
     
-    
     save_model({'encoder': train_model.encoder,
                 'decoder': train_model.decoder,
                 'vq_model': train_model.vq_model,
@@ -71,4 +69,4 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader, test_data_loader = [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=True, contrastive=True)
+    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=True)

@@ -76,7 +76,7 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader_non_aug, test_data_loader= [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    augmentations = ['AmpR', 'jitter', 'warp']
+    augmentations = ['AmpR', 'flip', 'slope', 'STFT']
     train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
     train_ConVQVAE(config, aug_train_data_loader=  train_data_loader_aug,

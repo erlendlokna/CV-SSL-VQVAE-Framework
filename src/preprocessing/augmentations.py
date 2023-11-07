@@ -1,15 +1,21 @@
 import numpy as np
 from scipy import interpolate
+import librosa
+import scipy
+from scipy.signal import find_peaks
 
 
 class Augmentations(object):
-    def __init__(self, AmpR_rate=0.1, jitter_std=0.05, **kwargs):
+    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, hop_length=512, phase_max_change=np.pi/4, **kwargs):
         """
         :param AmpR_rate: rate for the `random amplitude resize`.
         """
         self.AmpR_rate = AmpR_rate
-        self.jitter_std = jitter_std
-
+        self.slope_rate = slope_rate
+        self.n_fft = n_fft  # Size of the FFT window
+        self.hop_length = hop_length  # Hop length for STFT
+        self.phase_max_change = phase_max_change  # Maximum phase change
+        self.iaaft_iterations = 50
 
     def random_crop(self, subseq_len: int, *x_views):
         subx_views = []
@@ -24,7 +30,7 @@ class Augmentations(object):
         if len(subx_views) == 1:
             subx_views = subx_views[0]
         return subx_views
-    
+
     def amplitude_resize(self, *subx_views):
         """
         :param subx_view: (n_channels * subseq_len)
@@ -39,37 +45,69 @@ class Augmentations(object):
         if len(new_subx_views) == 1:
             new_subx_views = new_subx_views[0]
         return new_subx_views
-
-    def jitter(self, *x_views, noise_probability=0.1):
-        """
-        Apply jittering to the input time series.
-        :param x_views: Time series data.
-        """
-        jittered_x_views = []
-        for x_view in x_views:
-            noise = np.random.normal(0, self.jitter_std, size=x_view.shape)
-            mask = np.random.uniform(0, 1, size=x_view.shape) <= noise_probability
-            jittered_x_view = x_view + (mask * noise)
-            jittered_x_views.append(jittered_x_view)
-
-        if len(jittered_x_views) == 1:
-            jittered_x_views = jittered_x_views[0]
-        return jittered_x_views
     
-    def time_warp(self, x_view):
+    def flip(self, *subx_views):
         """
-        Stretch and squeeze some intervals in the input time series using interpolation.
-        :param x_view: Time series data.
+        Randomly flip the input sequences horizontally.
         """
-        scaling_factor = 1 + np.random.normal(0, self.stretch_std)
-        original_length = x_view.shape[-1]
-        new_length = original_length
-        warped_series = np.zeros((x_view.shape[0], new_length))
+        flipped_subx_views = [np.flip(subx, axis=-1) if np.random.choice([True, False]) else subx for subx in subx_views]
+        if len(flipped_subx_views) == 1:
+            flipped_subx_views = flipped_subx_views[0]
+        return flipped_subx_views
+    
+    def add_slope(self, *subx_views):
+        """
+        Add a linear slope to the input sequences.
+        """
+        sloped_subx_views = []
+        for subx in subx_views:
+            n_channels, subseq_len = subx.shape
+            slope = np.random.uniform(-self.slope_rate, self.slope_rate, size=(n_channels, 1))
+            x = np.arange(subseq_len)
+            slope_component = slope * x
+            sloped_subx = subx + slope_component
+            sloped_subx_views.append(sloped_subx)
 
-        for i in range(x_view.shape[0]):
-            # Create a set of new time points based on scaling factor
-            new_time_points = np.arange(0, new_length) / scaling_factor
-            # Use linear interpolation to fill in the values
-            warped_series[i] = np.interp(new_time_points, np.arange(original_length), x_view[i])
+        if len(sloped_subx_views) == 1:
+            sloped_subx_views = sloped_subx_views[0]
+        return sloped_subx_views
+    
 
-        return warped_series
+    def stft_augmentation(self, *subx_views):
+        """
+        Apply STFT augmentation to the input sequences.
+        """
+        augmented_subx_views = []
+        for subx in subx_views:
+            n_channels, subseq_len = subx.shape
+            augmented_subx = np.zeros((n_channels, subseq_len))
+
+            for i in range(n_channels):
+
+                n_fft = 2**int(np.ceil(np.log2(len(subx[i]))))
+                    
+                # Compute the STFT of the original data
+                stft = librosa.stft(subx[i], n_fft=n_fft, hop_length=self.hop_length)
+
+                # Modify the phase of the STFT representation while controlling phase changes
+                magnitude = np.abs(stft)
+                phase = np.angle(stft)
+                phase_change = np.random.uniform(-self.phase_max_change, self.phase_max_change, size=phase.shape)
+                augmented_phase = phase + phase_change
+
+                # Reconstruct the augmented STFT
+                augmented_stft = magnitude * np.exp(1j * augmented_phase)
+
+                # Inverse STFT to get the augmented signal
+                augmented_signal = librosa.istft(augmented_stft, hop_length=self.hop_length)
+
+                augmented_subx[i] = augmented_signal[:subseq_len]
+
+            augmented_subx_views.append(augmented_subx)
+
+        if len(augmented_subx_views) == 1:
+            augmented_subx_views = augmented_subx_views[0]
+
+        return augmented_subx_views
+    
+    
