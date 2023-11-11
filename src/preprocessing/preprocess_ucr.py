@@ -134,29 +134,25 @@ class AugUCRDataset(Dataset):
         x = x.reshape(1, -1)  # (1 x F)
 
         subxs_pairs = []
-        for subseq_len in self.subseq_lens:
-            subx_view1, subx_view2 = x.copy(), x.copy()
+        
+        subx_view = x.copy()
 
-            # augmentations
-            used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
-            for aug in used_augs:
-                if aug == "RC":  # random crop
-                    subx_view1, subx_view2 = self.augs.random_crop(subseq_len, subx_view1, subx_view2)
-                if aug == "AmpR":  # random amplitude resize
-                    subx_view1, subx_view2 = self.augs.amplitude_resize(subx_view1, subx_view2)
-                if aug == 'flip':
-                    subx_view1, subx_view2 = self.augs.flip(subx_view1, subx_view2)
-                if aug == 'slope':
-                    subx_view1, subx_view2 = self.augs.add_slope(subx_view1, subx_view2)
-                if aug == 'STFT':
-                    subx_view1, subx_view2 = self.augs.stft_augmentation(subx_view1, subx_view2)
-                if aug == "AAFT":
-                    subx_view1, subx_view2 = self.augs.aaft_augmentation(subx_view1, subx_view2)
-                if aug == "IAAFT":
-                    subx_view1, subx_view2 = self.augs.iaaft_augmentation(subx_view1, subx_view2)
+        # augmentations
+        used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
+        for aug in used_augs:
+            if aug == "AmpR":  # random amplitude resize
+                subx_view = self.augs.amplitude_resize(subx_view)
+            if aug == 'flip':
+                subx_view = self.augs.flip(subx_view)
+            if aug == 'slope':
+                subx_view = self.augs.add_slope(subx_view)
+            if aug == 'STFT':
+                subx_view = self.augs.stft_augmentation(subx_view)
+            if aug == "RIC":
+                subx_view = self.augs.random_crop_and_interpolate(0.2, subx_view)
 
-            subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
-            subxs_pairs.append([subx_view1, subx_view2])
+        x, subx_view = self._assign_float32(x, subx_view)
+        subxs_pairs.append([x, subx_view])
 
         return subxs_pairs, y
 

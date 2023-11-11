@@ -4,16 +4,15 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.con_vqvae import InfoNCE_VQVAE
-from src.models.con_vqvae import BarlowTwinsVQVAE
+from src.models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
 
-from src.preprocessing.augmentations import Augmentations
-from src.preprocessing.preprocess_ucr import AugUCRDataset, UCRDataset, UCRDatasetImporter
+from src.preprocessing.preprocess_ucr import UCRDatasetImporter
 from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 from src.utils import save_model
+import torch
 
-import numpy as np
+torch.set_float32_matmul_precision('medium')
 
 def train_ConVQVAE(config: dict,
                 aug_train_data_loader: DataLoader,
@@ -35,7 +34,9 @@ def train_ConVQVAE(config: dict,
                                     non_aug_train_data_loader=train_data_loader, 
                                     config=config, n_train_samples=len(train_data_loader.dataset))
 
-    wandb_logger = WandbLogger(project=project_name, name=None, config=config)
+    wandb_logger = WandbLogger(project=project_name, 
+                               dir=f"RepL/{config['dataset']['dataset_name']}/BarlowTwinsVQVAE",
+                               name=None, config=config)
     trainer = pl.Trainer(logger=wandb_logger,
                          enable_checkpointing=False,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],
@@ -76,9 +77,9 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader_non_aug, test_data_loader= [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    augmentations = ['AmpR', 'flip', 'slope', 'STFT']
+    augmentations = ['AmpR', 'slope', 'STFT', 'flip']
     train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
-    train_ConVQVAE(config, aug_train_data_loader=  train_data_loader_aug,
+    train_ConVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                     train_data_loader=train_data_loader_non_aug,
                     test_data_loader=test_data_loader, do_validate=False)

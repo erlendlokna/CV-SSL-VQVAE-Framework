@@ -3,7 +3,7 @@ from src.preprocessing.preprocess_ucr import UCRDataset, AugUCRDataset, UCRDatas
 from src.preprocessing.augmentations import Augmentations
 
 
-def build_data_pipeline(batch_size, dataset_importer: UCRDatasetImporter, config: dict, kind: str, augmentations=[]) -> DataLoader:
+def build_data_pipeline(batch_size, dataset_importer: UCRDatasetImporter, config: dict, kind: str, augmentations=[], shuffle_train=True) -> DataLoader:
     """
     :param config:
     :param kind train/valid/test
@@ -14,7 +14,7 @@ def build_data_pipeline(batch_size, dataset_importer: UCRDatasetImporter, config
         # DataLoader
         if kind == 'train':
             train_dataset = UCRDataset("train", dataset_importer)
-            return DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False, pin_memory=True)  # `drop_last=False` due to some datasets with a very small dataset size.
+            return DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=shuffle_train, drop_last=False, pin_memory=True)  # `drop_last=False` due to some datasets with a very small dataset size.
         elif kind == 'test':
             test_dataset = UCRDataset("test", dataset_importer)
             return DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=False, drop_last=False, pin_memory=True)
@@ -25,7 +25,7 @@ def build_data_pipeline(batch_size, dataset_importer: UCRDatasetImporter, config
         # DataLoader
         if kind == 'train':
             train_dataset = AugUCRDataset("train", dataset_importer, augs, augmentations, subseq_lens=[23, 46])
-            return DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False, pin_memory=True)  # `drop_last=False` due to some datasets with a very small dataset size.
+            return DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=shuffle_train, drop_last=False, pin_memory=True)  # `drop_last=False` due to some datasets with a very small dataset size.
         elif kind == 'test':
             test_dataset = AugUCRDataset("test", dataset_importer, augs, [], subseq_lens=[23, 46])
             return DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=False, drop_last=False, pin_memory=True)

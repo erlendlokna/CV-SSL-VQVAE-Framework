@@ -3,10 +3,18 @@ from scipy import interpolate
 import librosa
 import scipy
 from scipy.signal import find_peaks
+from src.utils import time_to_timefreq, timefreq_to_time
+import torch
+from torch.distributions import uniform
 
+import torch
+import torchaudio
+import torchaudio.transforms as T
+import torch.nn.functional as F
+from scipy.interpolate import interp1d
 
 class Augmentations(object):
-    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, hop_length=512, phase_max_change=np.pi/4, **kwargs):
+    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, hop_length=512/2, phase_max_change=np.pi/4, **kwargs):
         """
         :param AmpR_rate: rate for the `random amplitude resize`.
         """
@@ -72,42 +80,78 @@ class Augmentations(object):
             sloped_subx_views = sloped_subx_views[0]
         return sloped_subx_views
     
-
     def stft_augmentation(self, *subx_views):
         """
-        Apply STFT augmentation to the input sequences.
+        Apply STFT augmentation to the input sequences using PyTorch's STFT.
         """
         augmented_subx_views = []
         for subx in subx_views:
             n_channels, subseq_len = subx.shape
-            augmented_subx = np.zeros((n_channels, subseq_len))
+            augmented_subx = torch.zeros((n_channels, subseq_len))
 
             for i in range(n_channels):
+                subx_tensor = torch.tensor(subx[i], dtype=torch.float32)
 
-                n_fft = 2**int(np.ceil(np.log2(len(subx[i]))))
-                    
+                n_fft = 2 ** int(np.ceil(np.log2(len(subx_tensor))))
+
                 # Compute the STFT of the original data
-                stft = librosa.stft(subx[i], n_fft=n_fft, hop_length=self.hop_length)
+                stft = torch.stft(subx_tensor, n_fft=n_fft, return_complex=True, onesided=False)
 
                 # Modify the phase of the STFT representation while controlling phase changes
-                magnitude = np.abs(stft)
-                phase = np.angle(stft)
-                phase_change = np.random.uniform(-self.phase_max_change, self.phase_max_change, size=phase.shape)
+                magnitude = torch.abs(stft)
+                phase = torch.angle(stft)
+                phase_change = torch.empty_like(phase).uniform_(-self.phase_max_change, self.phase_max_change)
                 augmented_phase = phase + phase_change
 
                 # Reconstruct the augmented STFT
-                augmented_stft = magnitude * np.exp(1j * augmented_phase)
+                augmented_stft = magnitude * torch.exp(1j * augmented_phase)
 
                 # Inverse STFT to get the augmented signal
-                augmented_signal = librosa.istft(augmented_stft, hop_length=self.hop_length)
+                augmented_signal = torch.istft(augmented_stft, n_fft = n_fft, return_complex=False, length=subseq_len, onesided=False)
 
-                augmented_subx[i] = augmented_signal[:subseq_len]
+                augmented_subx[i] = augmented_signal
 
             augmented_subx_views.append(augmented_subx)
 
         if len(augmented_subx_views) == 1:
             augmented_subx_views = augmented_subx_views[0]
 
-        return augmented_subx_views
+        return np.array(augmented_subx_views)
     
-    
+    def random_crop_and_interpolate(scale_factor, *x_views):
+        """
+        Crop a subsequence from the input time series and interpolate to match the specified length.
+
+        Args:
+            scale_factor (float): The scale factor to determine the subsequence length as a fraction of the original length.
+            *x_views (numpy.ndarray): Variable-length input time series.
+
+        Returns:
+            list: A list of subsequence views of the input time series with interpolation.
+        """
+        subx_views = []
+        for x in x_views:
+            seq_len = x.shape[-1]
+            
+            # Calculate the subsequence length based on the scale factor
+            subseq_len = int(seq_len * scale_factor)
+            
+            if seq_len <= subseq_len:
+                # If the sequence length is smaller than the desired subsequence length, return as is
+                subx_views.append(x)
+            else:
+                rand_t = np.random.randint(0, seq_len - subseq_len + 1)
+                subx = x[:, rand_t: rand_t + subseq_len]  # Crop subsequence
+
+                # Create a linear interpolation function
+                original_x = np.arange(subseq_len)
+                interpolator = interp1d(original_x, subx, kind='linear', axis=-1, fill_value='extrapolate')
+
+                # Generate the interpolated subsequence with the desired length
+                interpolated_subx = interpolator(np.linspace(0, subseq_len - 1, subseq_len))
+                subx_views.append(interpolated_subx)
+
+        if len(subx_views) == 1:
+            subx_views = subx_views[0]
+
+        return subx_views

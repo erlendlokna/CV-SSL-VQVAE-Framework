@@ -4,7 +4,7 @@ dataset:
   data_scaling: True
   batch_sizes:
     vqvae: 128
-  num_workers: 0
+  num_workers: 16
 
 model_params:
   LR: 0.001
@@ -14,7 +14,7 @@ trainer_params:
   gpus:
     - 0
   max_epochs:
-    vqvae: 1000
+    vqvae: 2000
 
 encoder:
   dim: 64
@@ -35,6 +35,7 @@ VQVAE:
   emb_dropout: 0.
   perceptual_loss_weight: 0
 
-classnet:
-  epocs: 1000
+barlow_twins:
+  proj_hid: 4096
+  proj_out: 4096
 
