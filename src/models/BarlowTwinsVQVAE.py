@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import umap
 import wandb
-from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, standard_scale, minmax_scale
+from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, standard_scale, minmax_scale, kmeans_clustering_test
 from sklearn.decomposition import PCA
 from src.models.barlowtwins import BarlowTwins, Projector
 
@@ -61,87 +61,89 @@ class BarlowTwinsVQVAE(BaseModel):
         
         #barlow twins loss function
         self.barlow_twins = BarlowTwins(projector, lambda_=0.005)
+        self.barlow_scale = config['barlow_twins']['scale']
 
         #save these for representation learning tests during training
         self.train_data_loader = non_aug_train_data_loader
         self.test_data_loader = non_aug_test_data_loader
 
-
     def forward(self, batch):      
-        subxs_pairs, y = batch
-        if len(subxs_pairs[0]) == 2:
-            x, x_aug = subxs_pairs[0] #load two augmented x's
-            #x1 is the non-augmented timeseries
-        else:
-            x = x_aug = subxs_pairs #in case for validation
-            
+        subxs_pair, y = batch
+        x_view1, x_view2 = subxs_pair
+
         recons_loss = {'time': 0., 'timefreq': 0., 'perceptual': 0.}
         vq_losses = None
         perplexity = 0.
 
         #forward
-        C = x.shape[1]
-        u = time_to_timefreq(x, self.n_fft, C)  # (B, C, H, W)
-        u_aug = time_to_timefreq(x_aug, self.n_fft, C)
+        C = x_view1.shape[1]
         
+        # Convert time series to frequency domain representation
+        u1, u2 = time_to_timefreq(x_view1, self.n_fft, C), time_to_timefreq(x_view2, self.n_fft, C)
+
         if not self.decoder.is_upsample_size_updated:
-            self.decoder.register_upsample_size(torch.IntTensor(np.array(u.shape[2:])))
+            self.decoder.register_upsample_size(torch.IntTensor(np.array(u1.shape[2:])))
 
-        z = self.encoder(u)
-        z_aug = self.encoder(u_aug)
+        # Encode the inputs
+        z1, z2 = self.encoder(u1), self.encoder(u2)
 
-        barlow_twins_loss = self.barlow_twins(z, z_aug)
 
-        z_q, indices, vq_loss, perp = quantize(z, self.vq_model)
-        z_q_aug, indices_aug, vq_loss_aug, perp_aug = quantize(z_aug, self.vq_model)
+        # Compute Barlow Twins loss
+        z_q1, indices1, vq_loss1, perp1 = quantize(z1, self.vq_model)
+        z_q2, indices2, vq_loss2, perp2 = quantize(z2, self.vq_model)
+        #barlow_twins_loss = self.barlow_twins(z_q1, z_q2)
+        
+        #randomly pick view1 or view2 for reconstruction
+        use_view1= np.random.rand() < 0.5 
+        #reconstruct:
+        uhat = self.decoder(z_q1 if use_view1 else z_q2)
+        xhat = timefreq_to_time(uhat, self.n_fft, C, original_length=x_view1.size(2) if use_view1 else x_view2.size(2))
+        target_x, target_u = (x_view1, u1) if use_view1 else (x_view2, u2)
 
-        barlow_twins_loss = self.barlow_twins(z_q, z_q_aug)
+        #loss
+        recons_loss['time'] = F.mse_loss(target_x, xhat)
+        recons_loss['timefreq'] = F.mse_loss(target_u, uhat)
 
-        picked_aug = False
-        if np.random.uniform(0, 1) < 0.5:
-            uhat = self.decoder(z_q_aug)
-            xhat = timefreq_to_time(uhat, self.n_fft, C)
-            recons_loss['time'] = F.mse_loss(x_aug, xhat)
-            recons_loss['timefreq'] = F.mse_loss(u_aug, uhat)
-            picked_aug = True
-        else: 
-            uhat = self.decoder(z_q)
-            xhat = timefreq_to_time(uhat, self.n_fft, C)
-            recons_loss['time'] = F.mse_loss(x, xhat)
-            recons_loss['timefreq'] = F.mse_loss(u, uhat)
+        vq_loss = vq_loss1 if use_view1 else vq_loss2
+        perplexity = perp1 if use_view1 else perp2
 
-        vq_losses = {}
-        for key in vq_loss.keys():
-            vq_losses[key] = 0.5 * (vq_loss[key] + vq_loss_aug[key])
-        perplexity = 0.5 * (perp + perp_aug)
+        # Compute Barlow Twins loss 
+        barlow_twins_loss = self.barlow_twins(z1, z2)
+        #barlow_twins_loss = self.barlow_twins(z_q1, z_q2)
 
         # plot `x` and `xhat`
         r = np.random.uniform(0, 1)
         if r < 0.01:
-            b = np.random.randint(0, x.shape[0])
-            c = np.random.randint(0, x.shape[1])
+            b = np.random.randint(0, target_x.shape[0])
+            c = np.random.randint(0, target_x.shape[1])
             fig, ax = plt.subplots()
             plt.suptitle(f'ep_{self.current_epoch}')
             
-            ax.plot(x[b, c].cpu())
-            label = "x_aug_hat" if picked_aug else "xhat"
-            ax.plot(xhat[b,c].detach().cpu(), label=f"{label}")
-            ax.plot(x_aug[b, c].detach().cpu(), '--', c='grey')
-            ax.set_title('x')
-            ax.set_ylim(-4, 4)
-            fig.legend()
-            wandb.log({"augmented x vs xhat (with augmented x)": wandb.Image(plt)})
-            plt.close()
+            label1 = "view1-target" if use_view1 else "view1"
+            label2 = "view2-target" if not use_view1 else "view2"
+            label3 = "view1 - reconstruction" if use_view1 else "view2 - reconstruction"
+            alpha1 = 1 if use_view1 else 0.2
+            alpha2 = 1 if not use_view1 else 0.2
 
-        return recons_loss, vq_losses, perplexity, barlow_twins_loss
+            ax.plot(x_view1[b, c].cpu(), label=f"{label1}", c="gray", alpha=alpha1)
+            ax.plot(x_view2[b, c].cpu(), label=f"{label2}", c="gray", alpha=alpha2)
+            ax.plot(xhat[b,c].detach().cpu(), label=f"{label3}")
+            ax.set_title('x')
+            ax.set_ylim(-5, 5)
+            fig.legend()
+            wandb.log({"Reconstruction": wandb.Image(plt)})
+            plt.close()
+            
+        return recons_loss, vq_loss, perplexity, barlow_twins_loss
     
 
+    
     def training_step(self, batch, batch_idx):
         x = batch
 
         recons_loss, vq_loss, perplexity, barlow_twins_loss = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] +  1.2 * barlow_twins_loss
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + self.barlow_scale * barlow_twins_loss
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
@@ -159,7 +161,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'perceptual': recons_loss['perceptual'],
 
-                     'barrow_twins_loss': barlow_twins_loss
+                     'barlow_twins_loss': barlow_twins_loss
                      }
         
         wandb.log(loss_hist)
@@ -245,12 +247,12 @@ class BarlowTwinsVQVAE(BaseModel):
             self.test_representations()
 
     def test_representations(self):
-        print("Grabbing latent variables")
+        print("Grabbing discrete latent variables")
         ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
         zts, yts = self.encode_data(self.test_data_loader, self.encoder)
-        print("projecting..")
-        ztr = self.barlow_twins.projector(ztr)
-        zts = self.barlow_twins.projector(zts)
+        #print("projecting..")
+        #ztr = self.barlow_twins.projector(ztr)
+        #zts = self.barlow_twins.projector(zts)
 
         ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
         zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
@@ -264,16 +266,19 @@ class BarlowTwinsVQVAE(BaseModel):
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
         svm_acc = svm_test(ztr, zts, ytr, yts)
-        svm_gs_rbf_acc = 0.0#svm_test_gs_rbf(ztr, zts, ytr, yts)
+        #svm_gs_rbf_acc = #svm_test_gs_rbf(ztr, zts, ytr, yts)
         knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
+        #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            'svm_rbf': svm_gs_rbf_acc,
+            #'svm_rbf': svm_gs_rbf_acc,
             'knn1_acc': knn1_acc,
             'knn5_acc': knn5_acc,
-            'knn10_acc': knn10_acc
+            'knn10_acc': knn10_acc,
+            #'km_nmi_mean': km_nmi_mean,
+            #'km_nmi_std': km_nmi_std
         })
 
         embs = PCA(n_components=2).fit_transform(z)
@@ -284,7 +289,7 @@ class BarlowTwinsVQVAE(BaseModel):
         plt.close()
 
     
-    def encode_data(self, dataloader, encoder, cuda=True):
+    def encode_data(self, dataloader, encoder, vq_model = None, cuda=True):
         z_list = []  # List to hold all the encoded representations
         y_list = []  # List to hold all the labels/targets
 
@@ -299,6 +304,8 @@ class BarlowTwinsVQVAE(BaseModel):
             xf = time_to_timefreq(x, self.n_fft, C).to(x.device)  # Convert time domain to frequency domain
             z = encoder(xf)  # Encode the input
 
+            if vq_model is not None:
+                z, _, _, _ = quantize(z, vq_model)
             # Convert the tensors to lists and append to z_list and y_list
             z_list.extend(z.cpu().detach().tolist())
             y_list.extend(y.cpu().detach().tolist())  # Make sure to detach y and move to CPU as well
@@ -309,9 +316,6 @@ class BarlowTwinsVQVAE(BaseModel):
         if cuda:
             z_encoded = z_encoded.cuda()
             ys = ys.cuda()
-
-        # Flatten the tensor to 2D if it's not already
-        #z_encoded = z_encoded.view(z_encoded.size(0), -1)
 
         return z_encoded, ys
     

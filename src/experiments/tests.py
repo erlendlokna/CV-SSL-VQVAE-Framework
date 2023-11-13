@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import normalized_mutual_info_score
+from sklearn.cluster import KMeans
 from sklearn import metrics
 
 
@@ -89,6 +91,21 @@ def intristic_dimension(zqs, threshold=0.95):
     print("Calculation finished.")
     return intrinsic_dim
 
+def kmeans_clustering_test(z_train, y_train, z_test, y_test, n_runs=10):
+    nmis = []
+    n_clusters = len(np.unique(y_train))
+
+    for _ in range(n_runs):
+        kmeans = KMeans(n_clusters=n_clusters, n_init=10, random_state=42)
+        kmeans.fit(z_train)
+        y_test_pred = kmeans.predict(z_test)
+        
+        # Calculate NMI
+        nmi = normalized_mutual_info_score(y_test, y_test_pred, average_method='arithmetic')
+        nmis.append(nmi)
+
+    # Return the average NMI
+    return np.mean(nmis), np.std(nmis)
 
 def multiple_tests(test, Z, Y, n_runs, CNN=False, num_epochs=None, scale=True):
     accs = np.zeros(n_runs)

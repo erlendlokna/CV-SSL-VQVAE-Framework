@@ -93,7 +93,7 @@ class AugUCRDataset(Dataset):
                 dataset_importer: UCRDatasetImporter,
                 augs: Augmentations,
                 used_augmentations: list,
-                subseq_lens: list,
+                n_pairs: int,
                 **kwargs):
         """
         :param kind: "train" / "test"
@@ -106,7 +106,7 @@ class AugUCRDataset(Dataset):
         self.kind = kind
         self.augs = augs
         self.used_augmentations = used_augmentations if kind == "train" else []
-        self.subseq_lens = subseq_lens
+        self.n_pairs = n_pairs
 
         if kind == "train":
             self.X, self.Y = dataset_importer.X_train, dataset_importer.Y_train
@@ -128,34 +128,61 @@ class AugUCRDataset(Dataset):
         for x in xs:
             new_xs.append(x.astype(np.float32))
         return new_xs[0] if (len(xs) == 1) else new_xs
+    
+    def getitem_default(self, idx):
+        x, y = self.X[idx, :], self.Y[idx, :]
+        x = x.reshape(1, -1)  # (1 x F)
 
+        subx_view1 = self.apply_augmentations(x)
+        subx_view2 = self.apply_augmentations(x)
+        subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
+
+        return [subx_view1, subx_view2], y
+    """ 
     def getitem_default(self, idx):
         x, y = self.X[idx, :], self.Y[idx, :]
         x = x.reshape(1, -1)  # (1 x F)
 
         subxs_pairs = []
-        
-        subx_view = x.copy()
+        for subseq_len in range(self.subseq_lens):
+            subx_view1, subx_view2 = x.copy(), x.copy()
 
-        # augmentations
-        used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
-        for aug in used_augs:
-            if aug == "AmpR":  # random amplitude resize
-                subx_view = self.augs.amplitude_resize(subx_view)
-            if aug == 'flip':
-                subx_view = self.augs.flip(subx_view)
-            if aug == 'slope':
-                subx_view = self.augs.add_slope(subx_view)
-            if aug == 'STFT':
-                subx_view = self.augs.stft_augmentation(subx_view)
-            if aug == "RIC":
-                subx_view = self.augs.random_crop_and_interpolate(0.2, subx_view)
+            # augmentations
+            used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
+            
+            subx_view1 = self.apply_augmentations(subx_view1)
+            subx_view2 = self.apply_augmentations(subx_view2)
 
-        x, subx_view = self._assign_float32(x, subx_view)
-        subxs_pairs.append([x, subx_view])
+            subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
+            subxs_pairs.append([subx_view1, subx_view2])
 
         return subxs_pairs, y
-
+    """
+    def apply_augmentations(self, x):
+        # We will apply augmentations sequentially
+        # The input x is expected to be a single sequence, so we remove the use of *args
+        used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
+        subx_view = x.copy()
+        
+        # Apply each augmentation that is enabled
+        if 'AmpR' in used_augs:
+            subx_view = self.augs.amplitude_resize(subx_view)
+        if 'flip' in used_augs:
+            subx_view = self.augs.flip(subx_view)
+        if 'slope' in used_augs:
+            subx_view = self.augs.add_slope(subx_view)
+        if 'STFT' in used_augs:
+            subx_view = self.augs.stft_augmentation(subx_view)
+        if 'RIC' in used_augs:
+            # Assume 'RIC' refers to 'random_crop_and_interpolate'
+            # You need to define the scale factor for cropping, e.g., 0.8 for 80% length
+            scale_factor = 0.8
+            subx_view = self.augs.random_crop_and_interpolate(scale_factor, subx_view)
+        
+        # The output of stft_augmentation is already a numpy array, so no need to convert again
+        return subx_view
+    
+    
     def __getitem__(self, idx):
         return self.getitem_default(idx)
 

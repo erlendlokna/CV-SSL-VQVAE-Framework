@@ -19,10 +19,10 @@ class Projector(nn.Module):
 
     def forward(self, x):
         x = x.to(self.device)  # Move input tensor to the device
-        x = F.max_pool2d(x, kernel_size=(x.size(2), x.size(3)))  # Global max pooling
+        x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)))  # Global max pooling
         x = x.view(x.size(0), -1)  # Flatten the tensor
-        out = F.relu(self.linear1(x))  # Remove batch normalization here
-        out = F.relu(self.linear2(out))  # Remove batch normalization here
+        out = relu(self.nl1(self.linear1(x)))
+        out = relu(self.nl2(self.linear2(out)))
         out = self.linear3(out)
         return out
     
@@ -31,43 +31,44 @@ class Projector(nn.Module):
 class BarlowTwins(nn.Module):
     def __init__(self, projector, lambda_ = 0.005):
         super().__init__()
-        self.projector = projector
         self.lambda_ = lambda_
+        self.projector = projector
+        
+        self.bn = nn.BatchNorm1d(self.projector.linear3.out_features, affine=False)
 
     @staticmethod
-    def batch_dim_wise_normalize_z(z):
+    def _batch_dim_wise_normalize_z(z):
         """batch dim.-wise normalization (standard-scaling style)"""
         mean = z.mean(dim=0)  # batch-wise mean
-        std = z.std(dim=0) + 1e-7  # batch-wise std
+        std = z.std(dim=0)  # batch-wise std
         norm_z = (z - mean) / std  # standard-scaling; `dim=0`: batch dim.
         return norm_z
-
+    
     @staticmethod
-    def barlow_twins_cross_correlation_mat(norm_z1, norm_z2):
+    def barlow_twins_cross_correlation_mat(norm_z1: Tensor, norm_z2: Tensor) -> Tensor:
         batch_size = norm_z1.shape[0]
         C = torch.mm(norm_z1.T, norm_z2) / batch_size
         return C
 
-    @staticmethod
-    def barlow_twins_loss(norm_z1, norm_z2, lambda_):
-        C = BarlowTwins.barlow_twins_cross_correlation_mat(norm_z1, norm_z2)
+    def barlow_twins_loss(self, norm_z1, norm_z2):
+        C = self.barlow_twins_cross_correlation_mat(norm_z1, norm_z2)
         
         # loss
         D = C.shape[0]
         identity_mat = torch.eye(D, device=norm_z1.device)  # Specify the device here
         C_diff = (identity_mat - C) ** 2
-        off_diagonal_mul = (lambda_ * torch.abs(identity_mat - 1)) + identity_mat
+        off_diagonal_mul = (self.lambda_ * torch.abs(identity_mat - 1)) + identity_mat
         loss = (C_diff * off_diagonal_mul).sum()
         return loss
 
     def forward(self, z1, z2):
         
-        z1_norm = self.batch_dim_wise_normalize_z(z1)
-        z2_norm = self.batch_dim_wise_normalize_z(z2)
+        z1_projected = self.projector(z1)
+        z2_projected = self.projector(z2)
 
-        projected_z1 = self.projector(z1_norm)
-        projected_z2 = self.projector(z2_norm)
+        z1_projected = self._batch_dim_wise_normalize_z(z1_projected)
+        z2_projected = self._batch_dim_wise_normalize_z(z2_projected)
 
-        total_loss = self.barlow_twins_loss(projected_z1, projected_z2, self.lambda_)
-
-        return total_loss
+        return self.barlow_twins_loss(z1_projected, z2_projected)
+    
+    

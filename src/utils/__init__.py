@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import umap
 from sklearn.decomposition import PCA
 from sklearn import metrics
+import torch.nn.functional as F
 
 def get_root_dir():
     return Path(__file__).parent.parent.parent
@@ -39,11 +40,22 @@ def time_to_timefreq(x, n_fft: int, C: int):
     return x  # (B, C, H, W)
 
 
-def timefreq_to_time(x, n_fft: int, C: int):
+def timefreq_to_time(x, n_fft: int, C: int, original_length: int):
     x = rearrange(x, 'b (c z) n t -> (b c) n t z', c=C).contiguous()
     x = torch.view_as_complex(x)
     x = torch.istft(x, n_fft, normalized=False, return_complex=False)
     x = rearrange(x, '(b c) l -> b c l', c=C)
+
+    # Check if the length matches the original signal length
+    current_length = x.size(2)
+    if current_length < original_length:
+        # If shorter, pad the signal
+        pad_amount = original_length - current_length
+        x = F.pad(x, (0, pad_amount))
+    elif current_length > original_length:
+        # If longer, trim the signal
+        x = x.narrow(2, 0, original_length)
+
     return x
 
 

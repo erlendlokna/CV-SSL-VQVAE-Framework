@@ -25,7 +25,7 @@ from pathlib import Path
 import tempfile
 
 import wandb
-from src.experiments.tests import svm_test, knn_test, intristic_dimension, multiple_tests
+from src.experiments.tests import svm_test, knn_test, intristic_dimension, multiple_tests, minmax_scale
 from sklearn.decomposition import PCA
 
 class VQVAE(BaseModel):
@@ -86,7 +86,7 @@ class VQVAE(BaseModel):
 
 
         uhat = self.decoder(z_q)
-        xhat = timefreq_to_time(uhat, self.n_fft, C)
+        xhat = timefreq_to_time(uhat, self.n_fft, C, original_length=x.size(2))
 
         recons_loss['time'] = F.mse_loss(x, xhat)
         recons_loss['timefreq'] = F.mse_loss(u, uhat)
@@ -226,72 +226,76 @@ class VQVAE(BaseModel):
             self.test_representations()
 
     def test_representations(self):
-        zqs_train, _ = self.run_through_encoder_codebook(self.train_data_loader) #non augmented versions
-        zqs_train = torch.flatten(zqs_train.detach(), start_dim=1)
-        y_train = self.train_data_loader.dataset.Y.flatten().astype(int)
-        
-        zqs_test, _ = self.run_through_encoder_codebook(self.test_data_loader)
-        zqs_test = torch.flatten(zqs_test.detach(), start_dim=1)
-        y_test = self.test_data_loader.dataset.Y.flatten().astype(int)
+        print("Grabbing discrete latent variables")
+        ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
+        zts, yts = self.encode_data(self.test_data_loader, self.encoder)
+        #print("projecting..")
+        #ztr = self.barlow_twins.projector(ztr)
+        #zts = self.barlow_twins.projector(zts)
 
-        Z = np.concatenate((zqs_train, zqs_test), axis=0)
-        Y = np.concatenate((y_train, y_test), axis=0)
-        print("intrinstic dimension...")
-        intristic_dim = intristic_dimension(Z)
-        
-        print("probe tests...")
-        svm_acc = np.mean(multiple_tests(test=svm_test, Z=(zqs_train, zqs_test), Y=(y_train, y_test), n_runs=1))
-        #classnet_acc = np.mean(multiple_tests(classnet_test, (zqs_train, zqs_test), (y_train, y_test), n_runs=4))
-        knn_acc = np.mean(multiple_tests(test=knn_test, Z=(zqs_train, zqs_test), Y=(y_train, y_test), n_runs=1))
+        ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
+        zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
+        ytr = torch.flatten(ytr, start_dim=0).detach().cpu().numpy()
+        yts = torch.flatten(yts, start_dim=0).detach().cpu().numpy()
 
-        reps = {
+        ztr, zts = minmax_scale(ztr, zts)
+
+        z = np.concatenate((ztr, zts), axis=0)
+        y = np.concatenate((ytr, yts), axis=0)
+        
+        intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
+        svm_acc = svm_test(ztr, zts, ytr, yts)
+        #svm_gs_rbf_acc = #svm_test_gs_rbf(ztr, zts, ytr, yts)
+        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
+        #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
+
+        wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            'knn_acc': knn_acc
-        }
-        wandb.log(reps)
-        print("PCA...")
-        embs = PCA(n_components=2).fit_transform(Z)
+            #'svm_rbf': svm_gs_rbf_acc,
+            'knn1_acc': knn1_acc,
+            'knn5_acc': knn5_acc,
+            'knn10_acc': knn10_acc,
+            #'km_nmi_mean': km_nmi_mean,
+            #'km_nmi_std': km_nmi_std
+        })
+
+        embs = PCA(n_components=2).fit_transform(z)
         f, a = plt.subplots()
         plt.suptitle(f'ep_{self.current_epoch}')
-        a.scatter(embs[:, 0], embs[:, 1], c=Y)
+        a.scatter(embs[:, 0], embs[:, 1], c=y)
         wandb.log({"PCA plot": wandb.Image(f)})
+        plt.close()
 
-    def run_through_encoder_codebook(self, data_loader):
-        #collecting all the timeseries codebook index representations:
-        dataloader_iterator = iter(data_loader)
-        number_of_batches = len(data_loader)
+    
+    def encode_data(self, dataloader, encoder, cuda=True):
+        z_list = []  # List to hold all the encoded representations
+        y_list = []  # List to hold all the labels/targets
 
-        zqs_list = [] #TODO: make static. List containing zqs for each timeseries in data_loader
-        s_list = []
+        # Iterate over the entire dataloader
+        for batch in dataloader:
+            x, y = batch  # Unpack the batch.
 
-        for i in range(number_of_batches):
-            try:
-                x, y = next(dataloader_iterator)
-            except StopIteration:
-                dataloader_iterator = iter(data_loader)
-                x, y = next(dataloader_iterator)
-            
-            z_q, s = self.encode_to_z_q(x)
-  
-            for i, zq_i in enumerate(z_q):    
-                zqs_list.append(zq_i.detach().tolist())
-                s_list.append(s[i].tolist())
+            # Perform the encoding
+            if cuda:
+                x = x.cuda()
+            C = x.shape[1]
+            xf = time_to_timefreq(x, self.n_fft, C).to(x.device)  # Convert time domain to frequency domain
+            z = encoder(xf)  # Encode the input
 
-        zqs_tensor = torch.tensor(zqs_list, dtype=torch.float64)
-        s_tensor = torch.tensor(s_list, dtype=torch.int32)
-        return zqs_tensor, s_tensor
+            # Convert the tensors to lists and append to z_list and y_list
+            z_list.extend(z.cpu().detach().tolist())
+            y_list.extend(y.cpu().detach().tolist())  # Make sure to detach y and move to CPU as well
 
-    def encode_to_z_q(self, x):
-        """
-        x: (B, C, L)
-        """
-        x = x.cuda()
-        C = x.shape[1]
-        xf = time_to_timefreq(x, self.n_fft, C)  # (B, C, H, W)
-        
-        z = self.encoder(xf)  # (b c h w)
-        z_q, indices, vq_loss, perplexity = quantize(z, self.vq_model)  # (b c h w), (b (h w) h), ...
-        return z_q, indices
-            
+        # Convert lists of lists to 2D tensors
+        z_encoded = torch.tensor(z_list)
+        ys = torch.tensor(y_list)
+        if cuda:
+            z_encoded = z_encoded.cuda()
+            ys = ys.cuda()
+
+        # Flatten the tensor to 2D if it's not already
+        #z_encoded = z_encoded.view(z_encoded.size(0), -1)
+
+        return z_encoded, ys
 
