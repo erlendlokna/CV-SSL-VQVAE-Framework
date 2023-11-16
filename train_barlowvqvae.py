@@ -11,6 +11,7 @@ from src.preprocessing.data_pipeline import build_data_pipeline
 from src.utils import load_yaml_param_settings
 from src.utils import save_model
 import torch
+from plotting import sample_plot_classes
 
 torch.set_float32_matmul_precision('medium')
 
@@ -27,6 +28,7 @@ def train_ConVQVAE(config: dict,
     if wandb_project_case_idx != '':
         project_name += f'-{wandb_project_case_idx}'
 
+    
     input_length = train_data_loader.dataset.X.shape[-1]
 
     train_model = BarlowTwinsVQVAE(input_length, 
@@ -45,10 +47,14 @@ def train_ConVQVAE(config: dict,
                          accelerator='gpu',
                          check_val_every_n_epoch=20)
     
+    
     trainer.fit(train_model,
                 train_dataloaders=aug_train_data_loader,
                 val_dataloaders=test_data_loader if do_validate else None
                 )
+    wandb.log({"Dataset sample classes": wandb.Image(sample_plot_classes(train_data_loader.dataset.X, 
+                                                                         train_data_loader.dataset.Y,
+                                                                         config['dataset']['dataset_name']))})
     
     # additional log
     n_trainable_params = sum(p.numel() for p in train_model.parameters() if p.requires_grad)

@@ -107,6 +107,25 @@ def kmeans_clustering_test(z_train, y_train, z_test, y_test, n_runs=10):
     # Return the average NMI
     return np.mean(nmis), np.std(nmis)
 
+def calculate_entropy(indices, vq_model):
+    # Flatten the indices to get a 1D array of all index occurrences
+    indices_flat = indices.view(-1).detach()
+
+    # Calculate the frequency of each index
+    counts = torch.bincount(indices_flat, minlength=vq_model.codebook.size(0))
+
+    # Convert counts to probabilities
+    probabilities = counts.float() / indices_flat.size(0)
+
+    # Avoid division by zero in case some probabilities are zero
+    probabilities = probabilities[probabilities > 0]
+
+    # Calculate the entropy
+    entropy = -torch.sum(probabilities * torch.log(probabilities))
+
+    return entropy
+
+
 def multiple_tests(test, Z, Y, n_runs, CNN=False, num_epochs=None, scale=True):
     accs = np.zeros(n_runs)
     concatenate = len(Z) != 2

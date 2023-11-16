@@ -25,8 +25,9 @@ from pathlib import Path
 import tempfile
 
 import wandb
-from src.experiments.tests import svm_test, knn_test, intristic_dimension, multiple_tests, minmax_scale
+from src.experiments.tests import svm_test, knn_test, intristic_dimension, svm_test_gs_rbf, minmax_scale
 from sklearn.decomposition import PCA
+import umap
 
 class VQVAE(BaseModel):
     def __init__(self,
@@ -215,10 +216,12 @@ class VQVAE(BaseModel):
     
     # ---- Representation testing ------ 
     def on_train_epoch_end(self):
-        if self.current_epoch % 100 == 0 and self.current_epoch != 0:
+        if self.current_epoch % 100 == 0 and self.current_epoch != 0 :
+            self.test_representations()
+        if self.current_epoch == 2000:
             self.test_representations()
         
-        if self.current_epoch < 100 and self.current_epoch % 30 == 0:
+        if self.current_epoch < 100 and self.current_epoch % 20 == 0:
             self.test_representations()
 
     def on_train_epoch_start(self):
@@ -228,10 +231,7 @@ class VQVAE(BaseModel):
     def test_representations(self):
         print("Grabbing discrete latent variables")
         ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
-        zts, yts = self.encode_data(self.test_data_loader, self.encoder)
-        #print("projecting..")
-        #ztr = self.barlow_twins.projector(ztr)
-        #zts = self.barlow_twins.projector(zts)
+        zts, yts = self.encode_data(self.test_data_loader, self.encoder)    
 
         ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
         zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
@@ -245,14 +245,14 @@ class VQVAE(BaseModel):
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
         svm_acc = svm_test(ztr, zts, ytr, yts)
-        #svm_gs_rbf_acc = #svm_test_gs_rbf(ztr, zts, ytr, yts)
+        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts)
         knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
         #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            #'svm_rbf': svm_gs_rbf_acc,
+            'svm_rbf': svm_gs_rbf_acc,
             'knn1_acc': knn1_acc,
             'knn5_acc': knn5_acc,
             'knn10_acc': knn10_acc,
@@ -263,12 +263,20 @@ class VQVAE(BaseModel):
         embs = PCA(n_components=2).fit_transform(z)
         f, a = plt.subplots()
         plt.suptitle(f'ep_{self.current_epoch}')
-        a.scatter(embs[:, 0], embs[:, 1], c=y)
+        a.scatter(embs[:, 0], embs[:, 1], c=y, s=3)
         wandb.log({"PCA plot": wandb.Image(f)})
         plt.close()
+        
+        embs_u = umap.UMAP(init='spectral').fit_transform(z)
+        f, a = plt.subplots(figsize=(8, 8))
+        plt.suptitle(f'ep_{self.current_epoch}')
+        a.scatter(embs_u[:, 0], embs_u[:, 1], c=y, s=3)
+        wandb.log({"UMAP plot": wandb.Image(f)})
+        plt.close()
+
 
     
-    def encode_data(self, dataloader, encoder, cuda=True):
+    def encode_data(self, dataloader, encoder, vq_model = None, cuda=True):
         z_list = []  # List to hold all the encoded representations
         y_list = []  # List to hold all the labels/targets
 
@@ -283,6 +291,8 @@ class VQVAE(BaseModel):
             xf = time_to_timefreq(x, self.n_fft, C).to(x.device)  # Convert time domain to frequency domain
             z = encoder(xf)  # Encode the input
 
+            if vq_model is not None:
+                z, _, _, _ = quantize(z, vq_model)
             # Convert the tensors to lists and append to z_list and y_list
             z_list.extend(z.cpu().detach().tolist())
             y_list.extend(y.cpu().detach().tolist())  # Make sure to detach y and move to CPU as well
@@ -294,8 +304,4 @@ class VQVAE(BaseModel):
             z_encoded = z_encoded.cuda()
             ys = ys.cuda()
 
-        # Flatten the tensor to 2D if it's not already
-        #z_encoded = z_encoded.view(z_encoded.size(0), -1)
-
         return z_encoded, ys
-

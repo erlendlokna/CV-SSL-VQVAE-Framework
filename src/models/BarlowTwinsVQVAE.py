@@ -20,10 +20,11 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import umap
 import wandb
-from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, standard_scale, minmax_scale, kmeans_clustering_test
+from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, calculate_entropy, minmax_scale, kmeans_clustering_test
 from sklearn.decomposition import PCA
 from src.models.barlowtwins import BarlowTwins, Projector
 
+from umap import UMAP
 
 class BarlowTwinsVQVAE(BaseModel):
     #requires the augmented batches.
@@ -111,6 +112,11 @@ class BarlowTwinsVQVAE(BaseModel):
         barlow_twins_loss = self.barlow_twins(z1, z2)
         #barlow_twins_loss = self.barlow_twins(z_q1, z_q2)
 
+        #calculate entropy
+        entropy_view1 = calculate_entropy(indices1, self.vq_model)
+        entropy_view2 = calculate_entropy(indices2, self.vq_model)
+        average_entropy = 0.5 * (entropy_view1 + entropy_view2)
+
         # plot `x` and `xhat`
         r = np.random.uniform(0, 1)
         if r < 0.01:
@@ -134,14 +140,14 @@ class BarlowTwinsVQVAE(BaseModel):
             wandb.log({"Reconstruction": wandb.Image(plt)})
             plt.close()
             
-        return recons_loss, vq_loss, perplexity, barlow_twins_loss
+        return recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy
     
 
     
     def training_step(self, batch, batch_idx):
         x = batch
 
-        recons_loss, vq_loss, perplexity, barlow_twins_loss = self.forward(x)
+        recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy = self.forward(x)
 
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + self.barlow_scale * barlow_twins_loss
         # lr scheduler
@@ -161,7 +167,11 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'perceptual': recons_loss['perceptual'],
 
-                     'barlow_twins_loss': barlow_twins_loss
+                     'barlow_twins_loss': barlow_twins_loss,
+
+                     'barlow_twins_loss': barlow_twins_loss * self.barlow_scale,
+
+                     'average_entropy': average_entropy
                      }
         
         wandb.log(loss_hist)
@@ -171,7 +181,7 @@ class BarlowTwinsVQVAE(BaseModel):
     
     def validation_step(self, batch, batch_idx):
         x = batch
-        recons_loss, vq_loss, perplexity, barrow_twins_loss = self.forward(x)
+        recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy = self.forward(x)
 
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
@@ -188,7 +198,8 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'validation_perceptual': recons_loss['perceptual'],
 
-                     'barrow_twins_loss': barrow_twins_loss
+                     'barrow_twins_loss': barlow_twins_loss * self.barlow_scale,
+
                      }
         
         detach_the_unnecessary(val_loss_hist)
@@ -209,7 +220,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
     def test_step(self, batch, batch_idx):
         x = batch
-        recons_loss, vq_loss, perplexity, barrow_twins_loss = self.forward(x)
+        recons_loss, vq_loss, perplexity, barrow_twins_loss, _ = self.forward(x)
 
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
         
@@ -249,10 +260,7 @@ class BarlowTwinsVQVAE(BaseModel):
     def test_representations(self):
         print("Grabbing discrete latent variables")
         ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
-        zts, yts = self.encode_data(self.test_data_loader, self.encoder)
-        #print("projecting..")
-        #ztr = self.barlow_twins.projector(ztr)
-        #zts = self.barlow_twins.projector(zts)
+        zts, yts = self.encode_data(self.test_data_loader, self.encoder)    
 
         ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
         zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
@@ -266,14 +274,14 @@ class BarlowTwinsVQVAE(BaseModel):
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
         svm_acc = svm_test(ztr, zts, ytr, yts)
-        #svm_gs_rbf_acc = #svm_test_gs_rbf(ztr, zts, ytr, yts)
+        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts)
         knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
         #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            #'svm_rbf': svm_gs_rbf_acc,
+            'svm_rbf': svm_gs_rbf_acc,
             'knn1_acc': knn1_acc,
             'knn5_acc': knn5_acc,
             'knn10_acc': knn10_acc,
@@ -284,9 +292,17 @@ class BarlowTwinsVQVAE(BaseModel):
         embs = PCA(n_components=2).fit_transform(z)
         f, a = plt.subplots()
         plt.suptitle(f'ep_{self.current_epoch}')
-        a.scatter(embs[:, 0], embs[:, 1], c=y)
+        a.scatter(embs[:, 0], embs[:, 1], c=y, s=3)
         wandb.log({"PCA plot": wandb.Image(f)})
         plt.close()
+        
+        embs_u = umap.UMAP(init='spectral').fit_transform(z)
+        f, a = plt.subplots(figsize=(8, 8))
+        plt.suptitle(f'ep_{self.current_epoch}')
+        a.scatter(embs_u[:, 0], embs_u[:, 1], c=y, s=3)
+        wandb.log({"UMAP plot": wandb.Image(f)})
+        plt.close()
+
 
     
     def encode_data(self, dataloader, encoder, vq_model = None, cuda=True):
@@ -318,4 +334,3 @@ class BarlowTwinsVQVAE(BaseModel):
             ys = ys.cuda()
 
         return z_encoded, ys
-    
