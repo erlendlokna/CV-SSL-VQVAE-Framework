@@ -50,13 +50,13 @@ class VQVAE(BaseModel):
         downsampled_rate = compute_downsample_rate(input_length, self.n_fft, downsampled_width)
 
         #encoder
-        self.encoder = VQVAEEncoder(dim, 2*in_channels, downsampled_rate, config['encoder']['n_resnet_blocks'])
+        self.encoder = VQVAEEncoder(dim, 2*in_channels, downsampled_rate, config['encoder']['n_resnet_blocks'], config['encoder']['dropout_rate'])
         
         #vector quantiser
         self.vq_model = VectorQuantize(dim, config['VQVAE']['codebook']['size'], **config['VQVAE'])
 
         #decoder
-        self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
+        self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'], config['decoder']['dropout_rate'])
 
         if config['VQVAE']['perceptual_loss_weight']:
             self.fcn = load_pretrained_FCN(config['dataset']['dataset_name']).to(self.device)
@@ -65,6 +65,8 @@ class VQVAE(BaseModel):
         
         self.train_data_loader = train_data_loader
         self.test_data_loader = test_data_loader
+
+        self.init_loss_value = float('inf')
         
     def forward(self, batch):      
         x, y = batch
@@ -117,21 +119,20 @@ class VQVAE(BaseModel):
 
         return recons_loss, vq_loss, perplexity
     
-
+    def normalize_loss(self, loss):
+        if self.init_loss_value == float('inf'):
+            self.init_loss_value = loss.item()
+        
+        normalized_loss = loss / self.init_loss_value
+        normalized_loss *= self.config['losses']['vqvae_loss_max']
+        return normalized_loss
+    
     def training_step(self, batch, batch_idx):
         x = batch
         recons_loss, vq_loss, perplexity = self.forward(x)
-
-        """
-        print('-----------------')
-        print("recons_loss['time']:", type(recons_loss['time']))
-        print("recons_loss['timefreq']", type(recons_loss['timefreq']))
-        print("vq_loss", vq_loss)
-        print("recons_loss['perceptual']:", type(recons_loss['perceptual']))
-        print('-----------------')
-        """
-
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
+        
+        loss = self.normalize_loss(recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'])
+        
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
@@ -230,8 +231,8 @@ class VQVAE(BaseModel):
 
     def test_representations(self):
         print("Grabbing discrete latent variables")
-        ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
-        zts, yts = self.encode_data(self.test_data_loader, self.encoder)    
+        ztr, ytr = self.encode_data(self.train_data_loader, self.encoder, self.vq_model)
+        zts, yts = self.encode_data(self.test_data_loader, self.encoder, self.vq_model)    
 
         ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
         zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
@@ -244,9 +245,9 @@ class VQVAE(BaseModel):
         y = np.concatenate((ytr, yts), axis=0)
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
-        svm_acc = svm_test(ztr, zts, ytr, yts)
-        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts)
-        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
+        svm_acc = svm_test(ztr, zts, ytr, yts) if self.config['representations']['svm'] else 0
+        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts) if self.config['representations']['rbf_svm'] else 0
+        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts) if self.config['representations']['knn'] else 0
         #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({

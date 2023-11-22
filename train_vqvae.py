@@ -11,16 +11,21 @@ from src.utils import load_yaml_param_settings
 from src.utils import save_model
 
 import numpy as np
+import torch
+
+torch.set_float32_matmul_precision('medium')
 
 def train_VQVAE(config: dict,
                  train_data_loader: DataLoader,
                  test_data_loader: DataLoader,
                  do_validate: bool,
+                 wandb_project_name = '',
                  wandb_project_case_idx: str = ''):
     """
     :param do_validate: if True, validation is conducted during training with a test dataset.
     """
-    project_name = 'RepVQVAE-stage1'
+    project_name = wandb_project_name
+
     if wandb_project_case_idx != '':
         project_name += f'-{wandb_project_case_idx}'
 
@@ -29,11 +34,12 @@ def train_VQVAE(config: dict,
     train_model = VQVAE(input_length, test_data_loader=test_data_loader, train_data_loader=train_data_loader, config=config, n_train_samples=len(train_data_loader.dataset))
 
 
-    wandb_logger = WandbLogger(project=project_name, name=None, config=config)
+    wandb_logger = WandbLogger(project=project_name, name=f"VQVAE - {config['dataset']['dataset_name']}", config=config)
     trainer = pl.Trainer(logger=wandb_logger,
                          enable_checkpointing=False,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],
                          max_epochs=config['trainer_params']['max_epochs']['vqvae'],
+                         gradient_clip_val=config['gradient_clipping']['max_norm'],
                          devices=config['trainer_params']['gpus'],
                          accelerator='gpu',
                          check_val_every_n_epoch=20)
@@ -69,4 +75,4 @@ if __name__ == "__main__":
     batch_size = config['dataset']['batch_sizes']['vqvae']
     train_data_loader, test_data_loader = [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
 
-    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=True)
+    train_VQVAE(config, train_data_loader, test_data_loader, do_validate=True, wandb_project_name='Barlow-Twins-VQVAE')

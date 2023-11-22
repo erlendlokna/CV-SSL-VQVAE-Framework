@@ -48,13 +48,13 @@ class BarlowTwinsVQVAE(BaseModel):
         downsampled_rate = compute_downsample_rate(input_length, self.n_fft, downsampled_width)
 
         #encoder
-        self.encoder = VQVAEEncoder(dim, 2*in_channels, downsampled_rate, config['encoder']['n_resnet_blocks'])
+        self.encoder = VQVAEEncoder(dim, 2*in_channels, downsampled_rate, config['encoder']['n_resnet_blocks'], config['encoder']['dropout_rate'])
         
         #vector quantiser
         self.vq_model = VectorQuantize(dim, config['VQVAE']['codebook']['size'], **config['VQVAE'])
 
         #decoder
-        self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'])
+        self.decoder = VQVAEDecoder(dim, 2 * in_channels, downsampled_rate, config['decoder']['n_resnet_blocks'], config['decoder']['dropout_rate'])
 
         #projector
         projector = Projector(last_channels_enc=dim, proj_hid=config['barlow_twins']['proj_hid'], proj_out=config['barlow_twins']['proj_out'], 
@@ -62,40 +62,59 @@ class BarlowTwinsVQVAE(BaseModel):
         
         #barlow twins loss function
         self.barlow_twins = BarlowTwins(projector, lambda_=0.005)
-        self.barlow_scale = config['barlow_twins']['scale']
 
         #save these for representation learning tests during training
         self.train_data_loader = non_aug_train_data_loader
         self.test_data_loader = non_aug_test_data_loader
 
-    def forward(self, batch):      
-        subxs_pair, y = batch
-        x_view1, x_view2 = subxs_pair
+        self.initial_loss_values = {'vqvae': float('inf'), 'barlow_twins': float('inf')}
+
+    def forward(self, batch, training=True):      
+        #logic in case validation step
+        if training:
+            subxs_pair, y = batch
+            x_view1, x_view2 = subxs_pair
+        else:
+            x_view1, y = batch
+            x_view2 = None
+    
 
         recons_loss = {'time': 0., 'timefreq': 0., 'perceptual': 0.}
         vq_losses = None
         perplexity = 0.
 
-        #forward
+        #--- forward view 1 ---
+        #STFT
         C = x_view1.shape[1]
-        
-        # Convert time series to frequency domain representation
-        u1, u2 = time_to_timefreq(x_view1, self.n_fft, C), time_to_timefreq(x_view2, self.n_fft, C)
+        u1 = time_to_timefreq(x_view1, self.n_fft, C)
 
         if not self.decoder.is_upsample_size_updated:
             self.decoder.register_upsample_size(torch.IntTensor(np.array(u1.shape[2:])))
 
-        # Encode the inputs
-        z1, z2 = self.encoder(u1), self.encoder(u2)
-
-
-        # Compute Barlow Twins loss
+        #encode
+        z1 = self.encoder(u1)
+        #vector quantize
         z_q1, indices1, vq_loss1, perp1 = quantize(z1, self.vq_model)
-        z_q2, indices2, vq_loss2, perp2 = quantize(z2, self.vq_model)
-        #barlow_twins_loss = self.barlow_twins(z_q1, z_q2)
+        #use view 1 in case view 2 is None
+        use_view1 = True
+
+        if x_view2 is not None:
+            # --- forward view 2 ---
+            #STFT
+            u2 = time_to_timefreq(x_view2, self.n_fft, C)
+            #encode
+            z2 = self.encoder(u2)
+            #vector quantize
+            z_q2, indices2, vq_loss2, perp2 = quantize(z2, self.vq_model)
+
+            #calculate barlow twins loss
+            barlow_twins_loss = self.barlow_twins(z1, z2)
+            
+            use_view1 = np.random.rand() < 0.5
+        else:
+            barlow_twins_loss = torch.tensor(0.0)
+
         
-        #randomly pick view1 or view2 for reconstruction
-        use_view1= np.random.rand() < 0.5 
         #reconstruct:
         uhat = self.decoder(z_q1 if use_view1 else z_q2)
         xhat = timefreq_to_time(uhat, self.n_fft, C, original_length=x_view1.size(2) if use_view1 else x_view2.size(2))
@@ -108,18 +127,14 @@ class BarlowTwinsVQVAE(BaseModel):
         vq_loss = vq_loss1 if use_view1 else vq_loss2
         perplexity = perp1 if use_view1 else perp2
 
-        # Compute Barlow Twins loss 
-        barlow_twins_loss = self.barlow_twins(z1, z2)
-        #barlow_twins_loss = self.barlow_twins(z_q1, z_q2)
 
         #calculate entropy
-        entropy_view1 = calculate_entropy(indices1, self.vq_model)
-        entropy_view2 = calculate_entropy(indices2, self.vq_model)
-        average_entropy = 0.5 * (entropy_view1 + entropy_view2)
+        entropy = calculate_entropy(indices1 if use_view1 else indices2, self.vq_model)
 
         # plot `x` and `xhat`
         r = np.random.uniform(0, 1)
-        if r < 0.01:
+
+        if r < 0.01 and training:
             b = np.random.randint(0, target_x.shape[0])
             c = np.random.randint(0, target_x.shape[1])
             fig, ax = plt.subplots()
@@ -140,16 +155,37 @@ class BarlowTwinsVQVAE(BaseModel):
             wandb.log({"Reconstruction": wandb.Image(plt)})
             plt.close()
             
-        return recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy
+        return recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy
     
+    def normalize_losses(self, vqvae_loss_total, barlow_twins_loss_total):
+        # Update initial loss values if they are still 'inf'
+        if self.initial_loss_values['vqvae'] == float('inf'):
+            self.initial_loss_values['vqvae'] = vqvae_loss_total.item()
 
-    
+        if self.initial_loss_values['barlow_twins'] == float('inf'):
+            self.initial_loss_values['barlow_twins'] = barlow_twins_loss_total.item()
+
+        # Normalize the losses
+        normalized_vqvae_loss = vqvae_loss_total / self.initial_loss_values['vqvae']
+        normalized_barlow_twins_loss = barlow_twins_loss_total / self.initial_loss_values['barlow_twins']
+
+        return normalized_vqvae_loss, normalized_barlow_twins_loss
+        
     def training_step(self, batch, batch_idx):
         x = batch
 
-        recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy = self.forward(x)
+        recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy = self.forward(x)
 
-        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] + self.barlow_scale * barlow_twins_loss
+        vqvae_loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] 
+
+        if self.config['losses']['normalize']: 
+            vqvae_loss, barlow_twins_loss = self.normalize_losses(vqvae_loss, barlow_twins_loss)
+
+        vqvae_loss*=self.config['losses']['vqvae_loss_max']
+        barlow_twins_loss *= self.config['losses']['barlow_loss_max']
+
+        loss = vqvae_loss + self.config['losses']['beta'] * barlow_twins_loss
+
         # lr scheduler
         sch = self.lr_schedulers()
         sch.step()
@@ -169,9 +205,11 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'barlow_twins_loss': barlow_twins_loss,
 
-                     'barlow_twins_loss': barlow_twins_loss * self.barlow_scale,
+                     'entropy': entropy,
 
-                     'average_entropy': average_entropy
+                     'tot_vqvae_loss_norm': vqvae_loss,
+
+                     #'barlow_twins_loss_norm': barlow_twins_loss_norm
                      }
         
         wandb.log(loss_hist)
@@ -181,7 +219,7 @@ class BarlowTwinsVQVAE(BaseModel):
     
     def validation_step(self, batch, batch_idx):
         x = batch
-        recons_loss, vq_loss, perplexity, barlow_twins_loss, average_entropy = self.forward(x)
+        recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy = self.forward(x, training=False)
 
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
@@ -198,7 +236,7 @@ class BarlowTwinsVQVAE(BaseModel):
 
                      'validation_perceptual': recons_loss['perceptual'],
 
-                     'barrow_twins_loss': barlow_twins_loss * self.barlow_scale,
+                     'validation_entropy': entropy
 
                      }
         
@@ -259,8 +297,8 @@ class BarlowTwinsVQVAE(BaseModel):
 
     def test_representations(self):
         print("Grabbing discrete latent variables")
-        ztr, ytr = self.encode_data(self.train_data_loader, self.encoder)
-        zts, yts = self.encode_data(self.test_data_loader, self.encoder)    
+        ztr, ytr = self.encode_data(self.train_data_loader, self.encoder, self.vq_model)
+        zts, yts = self.encode_data(self.test_data_loader, self.encoder, self.vq_model)    
 
         ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
         zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
@@ -273,9 +311,9 @@ class BarlowTwinsVQVAE(BaseModel):
         y = np.concatenate((ytr, yts), axis=0)
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
-        svm_acc = svm_test(ztr, zts, ytr, yts)
-        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts)
-        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
+        svm_acc = svm_test(ztr, zts, ytr, yts) if self.config['representations']['svm'] else 0
+        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts) if self.config['representations']['rbf_svm'] else 0
+        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts) if self.config['representations']['knn'] else 0
         #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({
@@ -334,3 +372,4 @@ class BarlowTwinsVQVAE(BaseModel):
             ys = ys.cuda()
 
         return z_encoded, ys
+

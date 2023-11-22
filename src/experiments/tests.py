@@ -58,8 +58,9 @@ def svm_test(Z_train, Z_test, y_train, y_test, silent=False):
     svm.fit(Z_train, y_train)
     if not silent: print("Predicting using SVM..")
     y_pred_svm = svm.predict(Z_test)
-    if not silent: print("SVM test finished.")
-    return metrics.accuracy_score(y_true=y_test, y_pred=y_pred_svm)
+    a = metrics.accuracy_score(y_true=y_test, y_pred=y_pred_svm)
+    if not silent: print("SVM test finished. Accuracy: ", a)
+    return a
 
 def svm_test_gs_rbf(Z_train, Z_test, y_train, y_test, silent=False):
     if not silent:
@@ -74,7 +75,9 @@ def svm_test_gs_rbf(Z_train, Z_test, y_train, y_test, silent=False):
 
     y_pred_svm = svm_clf.predict(Z_test)
 
-    return metrics.accuracy_score(y_true=y_test, y_pred=y_pred_svm)
+    a = metrics.accuracy_score(y_true=y_test, y_pred=y_pred_svm)
+    print("svm rbf finished. Accuracy:", a)
+    return a
 
 def classnet_test(Z_train, Z_test, y_train, y_test, CNN=False, num_epochs=200):
     classnet = train_CNNClassNet(Z_train, y_train, num_epochs) if CNN else train_ClassNet(Z_train, y_train, num_epochs)

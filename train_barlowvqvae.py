@@ -15,19 +15,21 @@ from plotting import sample_plot_classes
 
 torch.set_float32_matmul_precision('medium')
 
-def train_ConVQVAE(config: dict,
+def train_BarlowVQVAE(config: dict,
                 aug_train_data_loader: DataLoader,
                 train_data_loader: DataLoader,
                 test_data_loader: DataLoader,
                 do_validate: bool,
-                wandb_project_case_idx: str = ''):
+                wandb_project_case_idx: str = '',
+                wandb_project_name="",
+                wandb_exp_name=''):
     """
     :param do_validate: if True, validation is conducted during training with a test dataset.
     """
-    project_name = 'RepVQVAE-stage1'
+    project_name =  wandb_project_name
+
     if wandb_project_case_idx != '':
         project_name += f'-{wandb_project_case_idx}'
-
     
     input_length = train_data_loader.dataset.X.shape[-1]
 
@@ -38,11 +40,13 @@ def train_ConVQVAE(config: dict,
 
     wandb_logger = WandbLogger(project=project_name, 
                                dir=f"RepL/{config['dataset']['dataset_name']}/BarlowTwinsVQVAE",
-                               name=None, config=config)
+                               name=f'Barlow VQVAE-{config["dataset"]["dataset_name"]}-{wandb_exp_name}', config=config)
+    
     trainer = pl.Trainer(logger=wandb_logger,
                          enable_checkpointing=False,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],
-                         max_epochs=config['trainer_params']['max_epochs']['vqvae'],
+                         gradient_clip_val=config['gradient_clipping']['max_norm'],
+                         max_epochs=config['trainer_params']['max_epochs']['barlowvqvae'],
                          devices=config['trainer_params']['gpus'],
                          accelerator='gpu',
                          check_val_every_n_epoch=20)
@@ -67,9 +71,9 @@ def train_ConVQVAE(config: dict,
     print('saving the models...')
     
     
-    save_model({'contrastive_encoder': train_model.encoder,
-                'contrastive_decoder': train_model.decoder,
-                'contrastive_vq_model': train_model.vq_model,
+    save_model({'barlow_encoder': train_model.encoder,
+                'barlow_decoder': train_model.decoder,
+                'barlow_vq_model': train_model.vq_model,
                 }, id=config['dataset']['dataset_name'])
     
     
@@ -86,6 +90,6 @@ if __name__ == "__main__":
     augmentations = ['AmpR', 'slope', 'flip', 'STFT']
     train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
-    train_ConVQVAE(config, aug_train_data_loader = train_data_loader_aug,
+    train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                     train_data_loader=train_data_loader_non_aug,
-                    test_data_loader=test_data_loader, do_validate=False)
+                    test_data_loader=test_data_loader, do_validate=True)

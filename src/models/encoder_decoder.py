@@ -10,14 +10,17 @@ This code is taken from:
 """
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, bn=False, downsample = None):
+    def __init__(self, in_channels, out_channels, stride=1, bn=False, dropout_rate=0.0, downsample = None):
         super(ResBlock, self).__init__()
 
         layers = [
             nn.LeakyReLU(),
             nn.Conv2d(in_channels, out_channels, kernel_size=3, stride = stride, padding = 1),
+            nn.Dropout(dropout_rate),
             nn.LeakyReLU(),
             nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0),
+            nn.Dropout(dropout_rate),
+
         ]
 
         if bn:
@@ -30,24 +33,26 @@ class ResBlock(nn.Module):
         return x + self.convs(x)
 
 class VQVAEEncBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, dropout_rate=0.0):
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=(3, 4), stride=(1, 2), padding=(1, 1), padding_mode='replicate'),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(inplace=True)
+            nn.LeakyReLU(inplace=True),
+            nn.Dropout(dropout_rate)
         )
 
     def forward(self, x):
         return self.block(x)
     
 class VQVAEDecBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, dropout_rate=0.0):
         super().__init__()
         self.block = nn.Sequential(
             nn.ConvTranspose2d(in_channels, out_channels, kernel_size=(3, 4), stride = (1, 2), padding=(1, 1)),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(inplace=True)
+            nn.LeakyReLU(inplace=True),
+            nn.Dropout(dropout_rate)
         )
     def forward(self, x):
         return self.block(x)
@@ -58,14 +63,15 @@ class VQVAEEncoder(nn.Module):
                  num_channels: int,
                  downsample_rate: int,
                  n_resnet_blocks: int,
+                 dropout_rate: float,
                  bn: bool = True,
                  **kwargs):
         
         super().__init__()
         self.encoder = nn.Sequential(
-            VQVAEEncBlock(num_channels, d),
-            *[VQVAEEncBlock(d, d) for _ in range(int(np.log2(downsample_rate)) -1)],
-            *[nn.Sequential(ResBlock(d, d, bn=bn), nn.BatchNorm2d(d)) for _ in range(n_resnet_blocks)]
+            VQVAEEncBlock(num_channels, d, dropout_rate),
+            *[VQVAEEncBlock(d, d, dropout_rate) for _ in range(int(np.log2(downsample_rate)) -1)],
+            *[nn.Sequential(ResBlock(d, d, bn=bn, dropout_rate=dropout_rate), nn.BatchNorm2d(d)) for _ in range(n_resnet_blocks)]
         )
 
         self.is_num_tokens_updated = False
@@ -98,6 +104,7 @@ class VQVAEDecoder(nn.Module):
                  num_channels: int,
                  downsample_rate: int,
                  n_resnet_blocks: int,
+                 dropout_rate: float,
                  **kwargs):
         """
         :param d: hidden dimension size
@@ -108,8 +115,8 @@ class VQVAEDecoder(nn.Module):
         """
         super().__init__()
         self.decoder = nn.Sequential(
-            *[nn.Sequential(ResBlock(d, d), nn.BatchNorm2d(d)) for _ in range(n_resnet_blocks)],
-            *[VQVAEDecBlock(d, d) for _ in range(int(np.log2(downsample_rate)) - 1)],
+            *[nn.Sequential(ResBlock(d, d, dropout_rate=dropout_rate), nn.BatchNorm2d(d)) for _ in range(n_resnet_blocks)],
+            *[VQVAEDecBlock(d, d, dropout_rate=dropout_rate) for _ in range(int(np.log2(downsample_rate)) - 1)],
             nn.ConvTranspose2d(d, num_channels, kernel_size=(3, 4), stride=(1, 2), padding=(1, 1)),
             nn.ConvTranspose2d(num_channels, num_channels, kernel_size=(3, 4), stride=(1, 2), padding=(1, 1)),  # one more upsampling layer is added not to miss reconstruction details
         )

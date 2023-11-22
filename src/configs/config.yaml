@@ -1,5 +1,5 @@
 dataset:
-  dataset_name: 'Crop'
+  dataset_name: 'ECG5000'
   in_channels: 1
   data_scaling: True
   batch_sizes:
@@ -8,21 +8,24 @@ dataset:
 
 model_params:
   LR: 0.001 #0.01
-  weight_decay: 0.00001
+  weight_decay: 0.001 #0.00001
 
 trainer_params:
   gpus:
     - 0
   max_epochs:
     vqvae: 1000
+    barlowvqvae: 1000
 
 encoder:
   dim: 64
+  dropout_rate: 0.0
   n_resnet_blocks: 4
   downsampled_width: 8
 
 decoder:
   dim: 64
+  dropout_rate: 0.0
   n_resnet_blocks: 4
 
 VQVAE:
@@ -31,12 +34,24 @@ VQVAE:
     size: 32
     dim: 64
   decay: 0.8
-  commitment_weight: 2
+  commitment_weight: 1
   emb_dropout: 0.
   perceptual_loss_weight: 0
 
 barlow_twins:
   proj_hid: 4096
   proj_out: 4096
-  scale: 0.001
 
+losses:
+  normalize: False
+  vqvae_loss_max: 1
+  barlow_loss_max: 1
+  beta: 1
+
+gradient_clipping:
+  max_norm: 1
+
+representations:
+  svm: True
+  rbf_svm: True
+  knn: True

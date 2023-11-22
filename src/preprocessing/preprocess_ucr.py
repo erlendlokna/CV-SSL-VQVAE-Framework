@@ -173,11 +173,10 @@ class AugUCRDataset(Dataset):
             subx_view = self.augs.add_slope(subx_view)
         if 'STFT' in used_augs:
             subx_view = self.augs.stft_augmentation(subx_view)
-        if 'RIC' in used_augs:
-            # Assume 'RIC' refers to 'random_crop_and_interpolate'
-            # You need to define the scale factor for cropping, e.g., 0.8 for 80% length
-            scale_factor = 0.8
-            subx_view = self.augs.random_crop_and_interpolate(scale_factor, subx_view)
+        if 'jitter' in used_augs:
+            subx_view = self.augs.jitter(subx_view)
+        if 'slice' in used_augs:
+            subx_view = self.augs.time_slicing(subx_view, expected_length=x.shape[-1])
         
         # The output of stft_augmentation is already a numpy array, so no need to convert again
         return subx_view

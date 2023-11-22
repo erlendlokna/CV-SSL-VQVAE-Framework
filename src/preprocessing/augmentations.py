@@ -14,30 +14,15 @@ import torch.nn.functional as F
 from scipy.interpolate import interp1d
 
 class Augmentations(object):
-    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, hop_length=512/2, phase_max_change=np.pi/4, **kwargs):
+    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, phase_max_change=np.pi/4, jitter_std=0.01, **kwargs):
         """
         :param AmpR_rate: rate for the `random amplitude resize`.
         """
         self.AmpR_rate = AmpR_rate
         self.slope_rate = slope_rate
         self.n_fft = n_fft  # Size of the FFT window
-        self.hop_length = hop_length  # Hop length for STFT
         self.phase_max_change = phase_max_change  # Maximum phase change
-        self.iaaft_iterations = 50
-
-    def random_crop(self, subseq_len: int, *x_views):
-        subx_views = []
-        rand_ts = []
-        for i in range(len(x_views)):
-            seq_len = x_views[i].shape[-1]
-            rand_t = np.random.randint(0, seq_len - subseq_len + 1, size=1)[0]
-            subx = x_views[i][:, rand_t: rand_t + subseq_len]  # (subseq_len)
-            subx_views.append(subx)
-            rand_ts.append(rand_t)
-
-        if len(subx_views) == 1:
-            subx_views = subx_views[0]
-        return subx_views
+        self.jitter_std = jitter_std
 
     def amplitude_resize(self, *subx_views):
         """
@@ -118,40 +103,56 @@ class Augmentations(object):
 
         return np.array(augmented_subx_views)
     
-    def random_crop_and_interpolate(scale_factor, *x_views):
+    def jitter(self, *subx_views):
         """
-        Crop a subsequence from the input time series and interpolate to match the specified length.
-
-        Args:
-            scale_factor (float): The scale factor to determine the subsequence length as a fraction of the original length.
-            *x_views (numpy.ndarray): Variable-length input time series.
-
-        Returns:
-            list: A list of subsequence views of the input time series with interpolation.
+        Add random jitter (noise) to each data point in the input sequence.
         """
-        subx_views = []
-        for x in x_views:
-            seq_len = x.shape[-1]
-            
-            # Calculate the subsequence length based on the scale factor
-            subseq_len = int(seq_len * scale_factor)
-            
-            if seq_len <= subseq_len:
-                # If the sequence length is smaller than the desired subsequence length, return as is
-                subx_views.append(x)
+        jittered_subx_views = []
+        for subx in subx_views:
+            jitter = np.random.normal(0, self.jitter_std, subx.shape)
+            jittered_subx = subx + jitter
+            jittered_subx_views.append(jittered_subx)
+
+        if len(jittered_subx_views) == 1:
+            jittered_subx_views = jittered_subx_views[0]
+        return jittered_subx_views
+    
+    def time_slicing(self, *subx_views, slice_rate=0.2, p=0.3, expected_length=None):
+        """
+        Perform window slicing on the input sequences and pad to match expected length.
+        :param subx_views: tuple of arrays, each of shape (n_channels, subseq_len)
+        :param slice_rate: fraction of the sequence length to be used as the window size for slicing
+        :param p: probability of applying time slicing
+        :param expected_length: the expected sequence length for padding
+        """
+
+        sliced_subx_views = []
+        for subx in subx_views:
+            # Apply slicing only with probability p
+            if np.random.rand() < p:
+                n_channels, subseq_len = subx.shape
+                window_size = int(subseq_len * slice_rate)
+                
+                # Randomly choose a start point for the slice
+                start_point = np.random.randint(0, subseq_len - window_size + 1)
+                end_point = start_point + window_size
+                
+                # Slice the sequence
+                sliced_subx = subx[:, start_point:end_point]
+
+                # If an expected length is provided, pad the sequence
+                if expected_length is not None and window_size < expected_length:
+                    padding = expected_length - window_size
+                    # Here we use zero padding, but other strategies could be implemented
+                    sliced_subx = np.pad(sliced_subx, ((0, 0), (0, padding)), 'constant', constant_values=0)
+                
+                sliced_subx_views.append(sliced_subx)
             else:
-                rand_t = np.random.randint(0, seq_len - subseq_len + 1)
-                subx = x[:, rand_t: rand_t + subseq_len]  # Crop subsequence
-
-                # Create a linear interpolation function
-                original_x = np.arange(subseq_len)
-                interpolator = interp1d(original_x, subx, kind='linear', axis=-1, fill_value='extrapolate')
-
-                # Generate the interpolated subsequence with the desired length
-                interpolated_subx = interpolator(np.linspace(0, subseq_len - 1, subseq_len))
-                subx_views.append(interpolated_subx)
-
-        if len(subx_views) == 1:
-            subx_views = subx_views[0]
-
-        return subx_views
+                # If not applying augmentation, just append the original sequence
+                sliced_subx_views.append(subx)
+        
+        # If there was only one sequence, don't return a list
+        if len(sliced_subx_views) == 1:
+            return sliced_subx_views[0]
+        
+        return sliced_subx_views

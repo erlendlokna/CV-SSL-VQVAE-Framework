@@ -38,3 +38,29 @@ def sample_plot_classes(data, labels, name):
     return figure
 
 
+
+if __name__ == "__main__":
+
+    #Get dataset
+    config_dir = 'src/configs/config.yaml' #dir to config file
+    config = load_yaml_param_settings(config_dir)
+
+    import sys
+    args = sys.argv
+    if len(args) > 1:
+        config['dataset']['dataset_name'] = args[1]
+
+    dataset_importer = UCRDatasetImporter(**config['dataset'])
+
+    training_data = dataset_importer.X_train
+    test_data = dataset_importer.X_test
+
+    labels = dataset_importer.Y_train
+    name = config['dataset']['dataset_name']
+
+
+    f = sample_plot_classes(training_data, labels, name)
+    plt.savefig("dataset.png")
+        # sample_plot_classes(test_data, labels, name)
+    
+
