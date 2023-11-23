@@ -14,6 +14,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import normalized_mutual_info_score
 from sklearn.cluster import KMeans
 from sklearn import metrics
+from sklearn.metrics import silhouette_score
 
 
 import matplotlib.pyplot as plt
@@ -94,21 +95,21 @@ def intristic_dimension(zqs, threshold=0.95):
     print("Calculation finished.")
     return intrinsic_dim
 
-def kmeans_clustering_test(z_train, y_train, z_test, y_test, n_runs=10):
-    nmis = []
-    n_clusters = len(np.unique(y_train))
+def kmeans_clustering_silhouette(Z, Y, n_runs=10):
+    silhouette_scores = []
+    n_clusters = len(np.unique(Y))
 
     for _ in range(n_runs):
-        kmeans = KMeans(n_clusters=n_clusters, n_init=10, random_state=42)
-        kmeans.fit(z_train)
-        y_test_pred = kmeans.predict(z_test)
+        kmeans = KMeans(n_clusters=n_clusters, n_init=10)
+        Y_preds = kmeans.fit_predict(Z)
         
-        # Calculate NMI
-        nmi = normalized_mutual_info_score(y_test, y_test_pred, average_method='arithmetic')
-        nmis.append(nmi)
+        # Calculate silhouette score
+        score = silhouette_score(Z, Y_preds)  # Corrected to use Z and Y_preds
+        silhouette_scores.append(score)
 
-    # Return the average NMI
-    return np.mean(nmis), np.std(nmis)
+    # Return the average silhouette score
+    return np.mean(silhouette_scores), np.std(silhouette_scores)
+
 
 def calculate_entropy(indices, vq_model):
     # Flatten the indices to get a 1D array of all index occurrences

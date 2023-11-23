@@ -9,6 +9,8 @@ import torch.nn.functional as F
 class Projector(nn.Module):
     def __init__(self, last_channels_enc, proj_hid, proj_out, device):
         super().__init__()
+        self.proj_out = proj_out #numebr of projected features
+
         self.device = device  # Store the device
         # define layers
         self.linear1 = nn.Linear(last_channels_enc, proj_hid)
@@ -19,7 +21,7 @@ class Projector(nn.Module):
 
     def forward(self, x):
         x = x.to(self.device)  # Move input tensor to the device
-        x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)))  # Global max pooling
+        x = F.max_pool2d(x, kernel_size=(x.size(2), x.size(3)))  # Global max pooling
         x = x.view(x.size(0), -1)  # Flatten the tensor
         out = relu(self.nl1(self.linear1(x)))
         out = relu(self.nl2(self.linear2(out)))
@@ -69,6 +71,11 @@ class BarlowTwins(nn.Module):
         z1_projected = self._batch_dim_wise_normalize_z(z1_projected)
         z2_projected = self._batch_dim_wise_normalize_z(z2_projected)
 
-        return self.barlow_twins_loss(z1_projected, z2_projected)
+        loss = self.barlow_twins_loss(z1_projected, z2_projected) 
+
+        #scaling based on dimensionality of projector:
+        loss_scaled = loss / self.projector.proj_out
+
+        return loss_scaled
     
     

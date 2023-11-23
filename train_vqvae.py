@@ -39,7 +39,6 @@ def train_VQVAE(config: dict,
                          enable_checkpointing=False,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],
                          max_epochs=config['trainer_params']['max_epochs']['vqvae'],
-                         gradient_clip_val=config['gradient_clipping']['max_norm'],
                          devices=config['trainer_params']['gpus'],
                          accelerator='gpu',
                          check_val_every_n_epoch=20)

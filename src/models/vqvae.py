@@ -18,14 +18,12 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from pytorch_metric_learning.losses import ContrastiveLoss
-#from src.models.contrastiveloss import NTXentLoss
-from pytorch_metric_learning.losses import NTXentLoss
+
 from pathlib import Path
 import tempfile
 
 import wandb
-from src.experiments.tests import svm_test, knn_test, intristic_dimension, svm_test_gs_rbf, minmax_scale
+from src.experiments.tests import svm_test, knn_test, intristic_dimension, svm_test_gs_rbf, minmax_scale, kmeans_clustering_silhouette
 from sklearn.decomposition import PCA
 import umap
 

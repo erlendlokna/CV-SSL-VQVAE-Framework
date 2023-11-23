@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import umap
 import wandb
-from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, calculate_entropy, minmax_scale, kmeans_clustering_test
+from src.experiments.tests import svm_test, knn_test, svm_test_gs_rbf, intristic_dimension, calculate_entropy, minmax_scale, kmeans_clustering_silhouette
 from sklearn.decomposition import PCA
 from src.models.barlowtwins import BarlowTwins, Projector
 
@@ -62,12 +62,11 @@ class BarlowTwinsVQVAE(BaseModel):
         
         #barlow twins loss function
         self.barlow_twins = BarlowTwins(projector, lambda_=0.005)
+        self.beta_barlow = self.config['barlow_twins']['beta']
 
-        #save these for representation learning tests during training
+        #save these for representation tests during training
         self.train_data_loader = non_aug_train_data_loader
         self.test_data_loader = non_aug_test_data_loader
-
-        self.initial_loss_values = {'vqvae': float('inf'), 'barlow_twins': float('inf')}
 
     def forward(self, batch, training=True):      
         #logic in case validation step
@@ -157,34 +156,17 @@ class BarlowTwinsVQVAE(BaseModel):
             
         return recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy
     
-    def normalize_losses(self, vqvae_loss_total, barlow_twins_loss_total):
-        # Update initial loss values if they are still 'inf'
-        if self.initial_loss_values['vqvae'] == float('inf'):
-            self.initial_loss_values['vqvae'] = vqvae_loss_total.item()
-
-        if self.initial_loss_values['barlow_twins'] == float('inf'):
-            self.initial_loss_values['barlow_twins'] = barlow_twins_loss_total.item()
-
-        # Normalize the losses
-        normalized_vqvae_loss = vqvae_loss_total / self.initial_loss_values['vqvae']
-        normalized_barlow_twins_loss = barlow_twins_loss_total / self.initial_loss_values['barlow_twins']
-
-        return normalized_vqvae_loss, normalized_barlow_twins_loss
         
     def training_step(self, batch, batch_idx):
         x = batch
-
+        #forward:
         recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy = self.forward(x)
 
+        #calculate vqvae loss:
         vqvae_loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'] 
 
-        if self.config['losses']['normalize']: 
-            vqvae_loss, barlow_twins_loss = self.normalize_losses(vqvae_loss, barlow_twins_loss)
-
-        vqvae_loss*=self.config['losses']['vqvae_loss_max']
-        barlow_twins_loss *= self.config['losses']['barlow_loss_max']
-
-        loss = vqvae_loss + self.config['losses']['beta'] * barlow_twins_loss
+        #total loss:
+        loss = vqvae_loss + self.beta_barlow * barlow_twins_loss
 
         # lr scheduler
         sch = self.lr_schedulers()
@@ -206,10 +188,6 @@ class BarlowTwinsVQVAE(BaseModel):
                      'barlow_twins_loss': barlow_twins_loss,
 
                      'entropy': entropy,
-
-                     'tot_vqvae_loss_norm': vqvae_loss,
-
-                     #'barlow_twins_loss_norm': barlow_twins_loss_norm
                      }
         
         wandb.log(loss_hist)
@@ -221,6 +199,7 @@ class BarlowTwinsVQVAE(BaseModel):
         x = batch
         recons_loss, vq_loss, perplexity, barlow_twins_loss, entropy = self.forward(x, training=False)
 
+        #only vqvae
         loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
 
         # log
@@ -288,7 +267,7 @@ class BarlowTwinsVQVAE(BaseModel):
         if self.current_epoch == 2000:
             self.test_representations()
         
-        if self.current_epoch < 100 and self.current_epoch % 20 == 0:
+        if self.current_epoch < 100 and self.current_epoch % 50 == 0:
             self.test_representations()
 
     def on_train_epoch_start(self):
@@ -312,14 +291,16 @@ class BarlowTwinsVQVAE(BaseModel):
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
         svm_acc = svm_test(ztr, zts, ytr, yts) if self.config['representations']['svm'] else 0
-        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts) if self.config['representations']['rbf_svm'] else 0
+        print("calculating silhuettes..")
+        sil_mean, sil_std = kmeans_clustering_silhouette(z, y, n_runs=20)
         knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts) if self.config['representations']['knn'] else 0
-        #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            'svm_rbf': svm_gs_rbf_acc,
+            'sil_mean': sil_mean,
+            'sil_std': sil_std,
+            #'svm_rbf': svm_gs_rbf_acc,
             'knn1_acc': knn1_acc,
             'knn5_acc': knn5_acc,
             'knn10_acc': knn10_acc,
