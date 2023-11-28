@@ -64,7 +64,6 @@ class VQVAE(BaseModel):
         self.train_data_loader = train_data_loader
         self.test_data_loader = test_data_loader
 
-        self.init_loss_value = float('inf')
         
     def forward(self, batch):      
         x, y = batch
@@ -116,20 +115,13 @@ class VQVAE(BaseModel):
 
 
         return recons_loss, vq_loss, perplexity
-    
-    def normalize_loss(self, loss):
-        if self.init_loss_value == float('inf'):
-            self.init_loss_value = loss.item()
-        
-        normalized_loss = loss / self.init_loss_value
-        normalized_loss *= self.config['losses']['vqvae_loss_max']
-        return normalized_loss
+
     
     def training_step(self, batch, batch_idx):
         x = batch
         recons_loss, vq_loss, perplexity = self.forward(x)
         
-        loss = self.normalize_loss(recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual'])
+        loss = recons_loss['time'] + recons_loss['timefreq'] + vq_loss['loss'] + recons_loss['perceptual']
         
         # lr scheduler
         sch = self.lr_schedulers()
@@ -217,10 +209,7 @@ class VQVAE(BaseModel):
     def on_train_epoch_end(self):
         if self.current_epoch % 100 == 0 and self.current_epoch != 0 :
             self.test_representations()
-        if self.current_epoch == 2000:
-            self.test_representations()
-        
-        if self.current_epoch < 100 and self.current_epoch % 20 == 0:
+        if self.current_epoch == self.config['trainer_params']['max_epochs']['vqvae']-1:
             self.test_representations()
 
     def on_train_epoch_start(self):
@@ -243,15 +232,17 @@ class VQVAE(BaseModel):
         y = np.concatenate((ytr, yts), axis=0)
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
-        svm_acc = svm_test(ztr, zts, ytr, yts) if self.config['representations']['svm'] else 0
-        svm_gs_rbf_acc = svm_test_gs_rbf(ztr, zts, ytr, yts) if self.config['representations']['rbf_svm'] else 0
-        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts) if self.config['representations']['knn'] else 0
-        #km_nmi_mean, km_nmi_std = kmeans_clustering_test(ztr, ytr, zts, yts)
+        svm_acc = svm_test(ztr, zts, ytr, yts)
+        print("calculating silhuettes..")
+        sil_mean, sil_std = kmeans_clustering_silhouette(z, y, n_runs=10)
+        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
             'svm_acc': svm_acc,
-            'svm_rbf': svm_gs_rbf_acc,
+            'sil_mean': sil_mean,
+            'sil_std': sil_std,
+            #'svm_rbf': svm_gs_rbf_acc,
             'knn1_acc': knn1_acc,
             'knn5_acc': knn5_acc,
             'knn10_acc': knn10_acc,
@@ -272,6 +263,7 @@ class VQVAE(BaseModel):
         a.scatter(embs_u[:, 0], embs_u[:, 1], c=y, s=3)
         wandb.log({"UMAP plot": wandb.Image(f)})
         plt.close()
+
 
 
     

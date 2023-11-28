@@ -14,8 +14,8 @@ trainer_params:
   gpus:
     - 0
   max_epochs:
-    vqvae: 300
-    barlowvqvae: 300
+    vqvae: 1000
+    barlowvqvae: 10
 
 encoder:
   dim: 64

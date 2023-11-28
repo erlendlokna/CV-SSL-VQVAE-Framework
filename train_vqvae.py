@@ -20,7 +20,8 @@ def train_VQVAE(config: dict,
                  test_data_loader: DataLoader,
                  do_validate: bool,
                  wandb_project_name = '',
-                 wandb_project_case_idx: str = ''):
+                 wandb_project_case_idx: str = '',
+                 wandb_run_name=''):
     """
     :param do_validate: if True, validation is conducted during training with a test dataset.
     """
@@ -34,7 +35,7 @@ def train_VQVAE(config: dict,
     train_model = VQVAE(input_length, test_data_loader=test_data_loader, train_data_loader=train_data_loader, config=config, n_train_samples=len(train_data_loader.dataset))
 
 
-    wandb_logger = WandbLogger(project=project_name, name=f"VQVAE - {config['dataset']['dataset_name']}", config=config)
+    wandb_logger = WandbLogger(project=project_name, name=wandb_run_name, config=config)
     trainer = pl.Trainer(logger=wandb_logger,
                          enable_checkpointing=False,
                          callbacks=[LearningRateMonitor(logging_interval='epoch')],

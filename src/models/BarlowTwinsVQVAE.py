@@ -264,17 +264,14 @@ class BarlowTwinsVQVAE(BaseModel):
     def on_train_epoch_end(self):
         if self.current_epoch % 100 == 0 and self.current_epoch != 0 :
             self.test_representations()
-        if self.current_epoch == 2000:
-            self.test_representations()
-        
-        if self.current_epoch < 100 and self.current_epoch % 50 == 0:
+        if self.current_epoch == self.config['trainer_params']['max_epochs']['barlowvqvae']-1:
             self.test_representations()
 
     def on_train_epoch_start(self):
         if self.current_epoch == 0:
             self.test_representations()
 
-    def test_representations(self):
+    def test_representations(self, return_vals=False):
         print("Grabbing discrete latent variables")
         ztr, ytr = self.encode_data(self.train_data_loader, self.encoder, self.vq_model)
         zts, yts = self.encode_data(self.test_data_loader, self.encoder, self.vq_model)    
@@ -290,10 +287,10 @@ class BarlowTwinsVQVAE(BaseModel):
         y = np.concatenate((ytr, yts), axis=0)
         
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
-        svm_acc = svm_test(ztr, zts, ytr, yts) if self.config['representations']['svm'] else 0
+        svm_acc = svm_test(ztr, zts, ytr, yts)
         print("calculating silhuettes..")
-        sil_mean, sil_std = kmeans_clustering_silhouette(z, y, n_runs=20)
-        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts) if self.config['representations']['knn'] else 0
+        sil_mean, sil_std = kmeans_clustering_silhouette(z, y, n_runs=10)
+        knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
 
         wandb.log({
             'intrinstic_dim': intristic_dim,
@@ -322,8 +319,6 @@ class BarlowTwinsVQVAE(BaseModel):
         wandb.log({"UMAP plot": wandb.Image(f)})
         plt.close()
 
-
-    
     def encode_data(self, dataloader, encoder, vq_model = None, cuda=True):
         z_list = []  # List to hold all the encoded representations
         y_list = []  # List to hold all the labels/targets

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 class Projector(nn.Module):
     def __init__(self, last_channels_enc, proj_hid, proj_out, device):
         super().__init__()
-        self.proj_out = proj_out #numebr of projected features
+        self.proj_out = proj_out #number of projected features
 
         self.device = device  # Store the device
         # define layers
@@ -35,7 +35,7 @@ class BarlowTwins(nn.Module):
         super().__init__()
         self.lambda_ = lambda_
         self.projector = projector
-        
+        self.projector_features = projector.proj_out
         self.bn = nn.BatchNorm1d(self.projector.linear3.out_features, affine=False)
 
     @staticmethod
@@ -65,16 +65,13 @@ class BarlowTwins(nn.Module):
 
     def forward(self, z1, z2):
         
-        z1_projected = self.projector(z1)
-        z2_projected = self.projector(z2)
-
-        z1_projected = self._batch_dim_wise_normalize_z(z1_projected)
-        z2_projected = self._batch_dim_wise_normalize_z(z2_projected)
+        z1_projected = self._batch_dim_wise_normalize_z(self.projector(z1))
+        z2_projected = self._batch_dim_wise_normalize_z(self.projector(z2))
 
         loss = self.barlow_twins_loss(z1_projected, z2_projected) 
 
         #scaling based on dimensionality of projector:
-        loss_scaled = loss / self.projector.proj_out
+        loss_scaled = loss / self.projector_features
 
         return loss_scaled
     

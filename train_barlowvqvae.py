@@ -22,7 +22,7 @@ def train_BarlowVQVAE(config: dict,
                 do_validate: bool,
                 wandb_project_case_idx: str = '',
                 wandb_project_name="",
-                wandb_exp_name=''):
+                wandb_run_name=''):
     """
     :param do_validate: if True, validation is conducted during training with a test dataset.
     """
@@ -40,7 +40,7 @@ def train_BarlowVQVAE(config: dict,
 
     wandb_logger = WandbLogger(project=project_name, 
                                dir=f"RepL/{config['dataset']['dataset_name']}/BarlowTwinsVQVAE",
-                               name=f'Barlow VQVAE-{config["dataset"]["dataset_name"]}-{wandb_exp_name}', config=config)
+                               name=wandb_run_name, config=config)
     
     trainer = pl.Trainer(logger=wandb_logger,
                          enable_checkpointing=False,

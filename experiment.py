@@ -19,8 +19,6 @@ from train_barlowvqvae import train_BarlowVQVAE
 
 from train_vqvae import train_VQVAE
 
-experiment_name = "STFT-jitter"
-
 UCR_subset = [
     'StarLightCurves'
     'ElectricDevices'
@@ -33,7 +31,7 @@ UCR_subset = [
 
 all_augs = ['AmpR','STFT', 'jitter', 'slope', 'flip']
 
-betas = [1.5, 1, 0.5]
+betas = [2, 1, 0.5]
 
 epochs = 1000
 
@@ -43,8 +41,17 @@ finished_barlow_datasets = [
 finished_vqvae_datasets = [
 ]
 
+wandb_project_name = "BarlowTwinsVQVAE"
 
-wandb_project_name = "Barlow-Twins-VQVAE"
+
+def update_config(config, beta, dataset):
+    c = config
+    c['dataset']['dataset_name'] = dataset
+    c['barlow_twins']['beta'] = beta
+    return c
+
+run_name_barlow = lambda dataset, beta: f"BVQVAE_{dataset}_allaugs_beta_{beta}"
+run_name_vqvae = lambda dataset: f"VQVAE_{dataset}"
 
 if __name__ == "__main__":
     config_dir = 'src/configs/config.yaml' #dir to config file
@@ -52,31 +59,36 @@ if __name__ == "__main__":
     config = load_yaml_param_settings(config_dir)
 
     for ucr_dataset in UCR_subset:
+
+        config = update_config(config, betas[0], ucr_dataset)
+
+        # data pipeline
+        dataset_importer = UCRDatasetImporter(**config['dataset'])
+        batch_size = config['dataset']['batch_sizes']['vqvae']
+        train_data_loader_non_aug, test_data_loader= [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
+        
+        #augmented data pipeline:
+        augmentations = all_augs 
+        train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
+
+        #running vqvae experiment
+        if ucr_dataset not in finished_vqvae_datasets:
+            train_VQVAE(config, train_data_loader_non_aug, test_data_loader, 
+                        wandb_project_name=wandb_project_name, 
+                        wandb_run_name=run_name_vqvae(ucr_dataset),
+                        do_validate=True)
+
         for beta in betas:
             #overwriting config:
-            config['dataset']['dataset_name'] = ucr_dataset
-            config['barlow_twins']['beta'] = beta
+            config = update_config(config, beta, ucr_dataset)
             
-            # data pipeline
-            dataset_importer = UCRDatasetImporter(**config['dataset'])
-            batch_size = config['dataset']['batch_sizes']['vqvae']
-            train_data_loader_non_aug, test_data_loader= [build_data_pipeline(batch_size, dataset_importer, config, kind) for kind in ['train', 'test']]
-
-            augmentations = ['AmpR','STFT', 'jitter', 'slope']
-            train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
-            train_data_loader_not_aug = build_data_pipeline(batch_size, dataset_importer, config, "train")
-
-            #experiments:
-            if ucr_dataset not in finished_vqvae_datasets:
-                train_VQVAE(config, train_data_loader_not_aug, test_data_loader, wandb_project_name=wandb_project_name, do_validate=True)
-
-
+            #running Barlow VQVAE experiment
             if ucr_dataset not in finished_barlow_datasets:
                 train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                             train_data_loader=train_data_loader_non_aug,
                             test_data_loader=test_data_loader, 
                             wandb_project_name=wandb_project_name,
-                            wandb_exp_name=experiment_name,
+                            wandb_exp_name=run_name_barlow(ucr_dataset,beta),
                             do_validate=True)
                 
             

@@ -110,6 +110,32 @@ def kmeans_clustering_silhouette(Z, Y, n_runs=10):
     # Return the average silhouette score
     return np.mean(silhouette_scores), np.std(silhouette_scores)
 
+def find_optimal_k(Z, Y, max_clusters=None, n_runs=10):
+    if max_clusters is None:
+        max_clusters = len(np.unique(Y))  # A starting point, adjust as necessary
+    
+    best_k = 2
+    best_score = -1
+    silhouette_avgs = []
+    
+    # Try different numbers of clusters
+    for k in range(2, max_clusters+1):
+        current_silhouette_scores = []
+        for _ in range(n_runs):
+            kmeans = KMeans(n_clusters=k, n_init=10)
+            Y_preds = kmeans.fit_predict(Z)
+            score = silhouette_score(Z, Y_preds)
+            current_silhouette_scores.append(score)
+        
+        avg_score = np.mean(current_silhouette_scores)
+        silhouette_avgs.append(avg_score)
+        
+        if avg_score > best_score:
+            best_score = avg_score
+            best_k = k
+            
+    return best_k, best_score, silhouette_avgs
+
 
 def calculate_entropy(indices, vq_model):
     # Flatten the indices to get a 1D array of all index occurrences
