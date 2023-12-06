@@ -137,7 +137,7 @@ class AugUCRDataset(Dataset):
         subx_view2 = self.apply_augmentations(x)
         subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
 
-        return x, [subx_view1, subx_view2], y
+        return [subx_view1, subx_view2], y
 
     def apply_augmentations(self, x):
         # We will apply augmentations sequentially
