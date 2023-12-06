@@ -262,16 +262,20 @@ class BarlowTwinsVQVAE(BaseModel):
     
     # ---- Representation testing ------
     def on_train_epoch_end(self):
-        if self.current_epoch % 100 == 0 and self.current_epoch != 0 :
+        tested = False
+        if self.current_epoch % 300 == 0 and self.current_epoch != 0:
             self.test_representations()
-        if self.current_epoch == self.config['trainer_params']['max_epochs']['barlowvqvae']-1:
+            tested = True
+
+        if self.current_epoch == self.config['trainer_params']['max_epochs']['barlowvqvae']-1 and tested == False:
             self.test_representations()
 
     def on_train_epoch_start(self):
         if self.current_epoch == 0:
             self.test_representations()
 
-    def test_representations(self, return_vals=False):
+
+    def test_representations(self):
         print("Grabbing discrete latent variables")
         ztr, ytr = self.encode_data(self.train_data_loader, self.encoder, self.vq_model)
         zts, yts = self.encode_data(self.test_data_loader, self.encoder, self.vq_model)    
@@ -289,7 +293,8 @@ class BarlowTwinsVQVAE(BaseModel):
         intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
         svm_acc = svm_test(ztr, zts, ytr, yts)
         print("calculating silhuettes..")
-        sil_mean, sil_std = kmeans_clustering_silhouette(z, y, n_runs=10)
+        silhuettes = kmeans_clustering_silhouette(z, y, n_runs=15)
+        sil_mean, sil_std = np.mean(silhuettes), np.std(silhuettes)
         knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
 
         wandb.log({
@@ -305,6 +310,14 @@ class BarlowTwinsVQVAE(BaseModel):
             #'km_nmi_std': km_nmi_std
         })
 
+        f, a = plt.subplots(figsize=(6, 6))
+        a.boxplot(silhuettes)
+        plt.title('Box plot of silhouette scores [BT-VQVAE]')
+        plt.ylabel('Silhouette Score')
+        plt.xticks([1], ['Clusters'])
+        wandb.log({"Sil Boxplot": wandb.Image(f)})
+        plt.close()
+        
         embs = PCA(n_components=2).fit_transform(z)
         f, a = plt.subplots()
         plt.suptitle(f'ep_{self.current_epoch}')
@@ -318,6 +331,7 @@ class BarlowTwinsVQVAE(BaseModel):
         a.scatter(embs_u[:, 0], embs_u[:, 1], c=y, s=3)
         wandb.log({"UMAP plot": wandb.Image(f)})
         plt.close()
+
 
     def encode_data(self, dataloader, encoder, vq_model = None, cuda=True):
         z_list = []  # List to hold all the encoded representations
@@ -348,4 +362,3 @@ class BarlowTwinsVQVAE(BaseModel):
             ys = ys.cuda()
 
         return z_encoded, ys
-

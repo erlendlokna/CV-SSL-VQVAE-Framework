@@ -137,27 +137,8 @@ class AugUCRDataset(Dataset):
         subx_view2 = self.apply_augmentations(x)
         subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
 
-        return [subx_view1, subx_view2], y
-    """ 
-    def getitem_default(self, idx):
-        x, y = self.X[idx, :], self.Y[idx, :]
-        x = x.reshape(1, -1)  # (1 x F)
+        return x, [subx_view1, subx_view2], y
 
-        subxs_pairs = []
-        for subseq_len in range(self.subseq_lens):
-            subx_view1, subx_view2 = x.copy(), x.copy()
-
-            # augmentations
-            used_augs = [] if self.kind in ['test', 'valid'] else self.used_augmentations
-            
-            subx_view1 = self.apply_augmentations(subx_view1)
-            subx_view2 = self.apply_augmentations(subx_view2)
-
-            subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
-            subxs_pairs.append([subx_view1, subx_view2])
-
-        return subxs_pairs, y
-    """
     def apply_augmentations(self, x):
         # We will apply augmentations sequentially
         # The input x is expected to be a single sequence, so we remove the use of *args

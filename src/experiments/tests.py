@@ -108,7 +108,7 @@ def kmeans_clustering_silhouette(Z, Y, n_runs=10):
         silhouette_scores.append(score)
 
     # Return the average silhouette score
-    return np.mean(silhouette_scores), np.std(silhouette_scores)
+    return silhouette_scores
 
 def find_optimal_k(Z, Y, max_clusters=None, n_runs=10):
     if max_clusters is None:

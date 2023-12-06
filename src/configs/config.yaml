@@ -14,8 +14,8 @@ trainer_params:
   gpus:
     - 0
   max_epochs:
-    vqvae: 1000
-    barlowvqvae: 10
+    vqvae: 1500
+    barlowvqvae: 1500
 
 encoder:
   dim: 64
@@ -42,6 +42,4 @@ barlow_twins:
   proj_hid: 4096
   proj_out: 4096
   beta: 1
-
-
 

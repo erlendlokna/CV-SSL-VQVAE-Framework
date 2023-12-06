@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from scipy.interpolate import interp1d
 
 class Augmentations(object):
-    def __init__(self, AmpR_rate=0.1, slope_rate=0.001, n_fft=2048, phase_max_change=np.pi/4, jitter_std=0.01, **kwargs):
+    def __init__(self, AmpR_rate=0.1, slope_rate=0.01, n_fft=2048, phase_max_change=np.pi/4, jitter_std=0.1, **kwargs):
         """
         :param AmpR_rate: rate for the `random amplitude resize`.
         """

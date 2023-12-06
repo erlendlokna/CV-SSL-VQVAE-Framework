@@ -55,9 +55,6 @@ def train_BarlowVQVAE(config: dict,
                 train_dataloaders=aug_train_data_loader,
                 val_dataloaders=test_data_loader if do_validate else None
                 )
-    wandb.log({"Dataset sample classes": wandb.Image(sample_plot_classes(train_data_loader.dataset.X, 
-                                                                         train_data_loader.dataset.Y,
-                                                                         config['dataset']['dataset_name']))})
     
     # additional log
     n_trainable_params = sum(p.numel() for p in train_model.parameters() if p.requires_grad)
