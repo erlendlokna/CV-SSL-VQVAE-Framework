@@ -19,19 +19,32 @@ from train_barlowvqvae import train_BarlowVQVAE
 
 from train_vqvae import train_VQVAE
 
-n_runs = 8
+n_runs = 2
 
 UCR_subset = [
-    'StarLightCurves',
-    'ElectricDevices',
-    'ECG5000',
-    'Wafer',
-    'TwoPatterns',
-    'ShapesAll',
-    'FordA',
-    'UWaveGestureLibraryAll',
-    'ChlorineConcentration',
-    'FordB'
+    #'StarLightCurves',
+    #'ElectricDevices',
+    #'ECG5000',
+    #'Wafer',
+    #'TwoPatterns',
+    #'ShapesAll',
+    #'FordA',
+    #'UWaveGestureLibraryAll',
+    #'ChlorineConcentration',
+    #'FordB',
+    #'StarLightCurves',
+    #'ElectricDevices',
+    #'ECG5000',
+    #'Wafer',
+    #'TwoPatterns',
+    #'ShapesAll'
+    "CBF",
+]
+finished_vqvae = [
+
+]
+
+finished_barlow = [
 
 ]
 
@@ -39,7 +52,7 @@ all_augs = ['AmpR','STFT', 'jitter', 'slope', 'flip']
 
 betas = [2, 1, 0.5]
 
-wandb_project_name = "markov_BTVQVAE"
+wandb_project_name = "BarlowTwinsVQVAE"
 
 def update_config(config, beta, dataset):
     c = config
@@ -72,10 +85,11 @@ if __name__ == "__main__":
             train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
             #running vqvae experiment
-            train_VQVAE(config, train_data_loader_non_aug, test_data_loader, 
-                        wandb_project_name=wandb_project_name, 
-                        wandb_run_name=run_name_vqvae(ucr_dataset, run),
-                        do_validate=True)
+            if ucr_dataset not in finished_vqvae:
+                train_VQVAE(config, train_data_loader_non_aug, test_data_loader, 
+                            wandb_project_name=wandb_project_name, 
+                            wandb_run_name=run_name_vqvae(ucr_dataset, run),
+                            do_validate=True)
 
             for beta in betas:
                 #overwriting config:
@@ -83,12 +97,12 @@ if __name__ == "__main__":
                 config = update_config(config, beta, ucr_dataset)
                 
                 #running Barlow VQVAE experiment
-                
-                train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
-                            train_data_loader=train_data_loader_non_aug,
-                            test_data_loader=test_data_loader, 
-                            wandb_project_name=wandb_project_name,
-                            wandb_run_name=run_name_barlow(ucr_dataset, beta, run),
-                            do_validate=True)
-                
+                if [ucr_dataset, beta] not in finished_barlow:
+                    train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
+                                train_data_loader=train_data_loader_non_aug,
+                                test_data_loader=test_data_loader, 
+                                wandb_project_name=wandb_project_name,
+                                wandb_run_name=run_name_barlow(ucr_dataset, beta, run),
+                                do_validate=True)
+                    
             

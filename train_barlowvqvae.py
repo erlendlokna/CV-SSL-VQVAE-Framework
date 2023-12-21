@@ -64,13 +64,13 @@ def train_BarlowVQVAE(config: dict,
     print('closing...')
     wandb.finish()
 
-    print('saving the models...')
+    #print('saving the models...')
     
-    
-    save_model({'barlow_encoder': train_model.encoder,
-                'barlow_decoder': train_model.decoder,
-                'barlow_vq_model': train_model.vq_model,
-                }, id=config['dataset']['dataset_name'])
+    #beta = config['barlow_twins']['beta']
+    #save_model({f'barlow_{beta}_encoder': train_model.encoder,
+    #            f'barlow_{beta}_decoder': train_model.decoder,
+    #            f'barlow_vq_{beta}_model': train_model.vq_model,
+    #            }, id=config['dataset']['dataset_name'])
     
     
 if __name__ == "__main__":

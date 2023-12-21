@@ -1,3 +1,7 @@
-# Representation learning VQ-VAE
+# Barlow Twins integration to VQVAE
 
-![Screenshot from 2023-09-27 16-57-21](https://github.com/erlendlokna/representation-learning-VQ-VAE/assets/80318998/4c05cccb-6bf4-4351-be45-b228c05ba2c9)
+Implementation mainly inspired by the TimeVQVAE model.
+go to the original TimeVQVAE implementation for details: [a link](https://github.com/ML4ITS/TimeVQVAE)
+
+This repository contains the code for a Variational Quantized Variational Autoencoder (VQVAE) implementation including STFT. It also contains code for a dual-branched VQVAE encoder to enable the self-supervision through barlow twins. Illustrated below:
+

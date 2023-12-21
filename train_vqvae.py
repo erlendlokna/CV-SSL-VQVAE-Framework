@@ -57,12 +57,12 @@ def train_VQVAE(config: dict,
     print('closing...')
     wandb.finish()
 
-    print('saving the models...')
+    #print('saving the models...')
     
-    save_model({'encoder': train_model.encoder,
-                'decoder': train_model.decoder,
-                'vq_model': train_model.vq_model,
-                }, id=config['dataset']['dataset_name'])
+    #save_model({'encoder': train_model.encoder,
+    #            'decoder': train_model.decoder,
+    #            'vq_model': train_model.vq_model,
+    #            }, id=config['dataset']['dataset_name'])
 
 
 if __name__ == "__main__":
