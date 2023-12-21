@@ -1,7 +1,9 @@
 ## Repository details
 This repository contains the code for a Norwegian University of Science and Technology project thesis.
 
-Implementation is heavily inspired by the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE). This repository focuses on the addition of SSL, using the groundwork done by the authors of TimeVQVAE and the paper [Vector Quantized Time Series Generation with a Bidirectional Prior Model](https://arxiv.org/abs/2303.04743).
+Implementation is heavily inspired by the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE). Here they introduce the TimeVQVAE model incorporating the STFT and ISTFT.
+
+This repository focuses on the addition of SSL, using the groundwork done by the authors of TimeVQVAE and the paper [Vector Quantized Time Series Generation with a Bidirectional Prior Model](https://arxiv.org/abs/2303.04743).
 
 ## Contents
 This repository contains two models:
