@@ -2,8 +2,7 @@ import os
 import requests
 import tarfile
 from pathlib import Path
-
-
+from src.utils import get_root_dir
 
 def download_ucr_datasets(url='https://figshare.com/ndownloader/files/37909926', chunk_size=128, zip_fname='UCR_archive.zip'):
     #dirname = str(get_root_dir().joinpath("data"))
