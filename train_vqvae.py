@@ -4,11 +4,11 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.vqvae import VQVAE
-from src.preprocessing.preprocess_ucr import UCRDatasetImporter
-from src.preprocessing.data_pipeline import build_data_pipeline
-from src.utils import load_yaml_param_settings
-from src.utils import save_model
+from models.vqvae import VQVAE
+from preprocessing.preprocess_ucr import UCRDatasetImporter
+from preprocessing.data_pipeline import build_data_pipeline
+from utils import load_yaml_param_settings
+from utils import save_model
 
 import numpy as np
 import torch
@@ -57,16 +57,16 @@ def train_VQVAE(config: dict,
     print('closing...')
     wandb.finish()
 
-    #print('saving the models...')
+    print('saving the models...')
     
-    #save_model({'encoder': train_model.encoder,
-    #            'decoder': train_model.decoder,
-    #            'vq_model': train_model.vq_model,
-    #            }, id=config['dataset']['dataset_name'])
+    save_model({'vqvae_encoder': train_model.encoder,
+                'vqvae_decoder': train_model.decoder,
+                'vqvae_vq_model': train_model.vq_model,
+                }, id=config['dataset']['dataset_name'])
 
 
 if __name__ == "__main__":
-    config_dir = 'src/configs/config.yaml' #dir to config file
+    config_dir = 'configs/config.yaml' #dir to config file
 
     config = load_yaml_param_settings(config_dir)
 

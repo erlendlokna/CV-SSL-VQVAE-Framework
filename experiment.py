@@ -4,14 +4,13 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-from src.models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
+from models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
 
-from src.preprocessing.preprocess_ucr import UCRDatasetImporter
-from src.preprocessing.data_pipeline import build_data_pipeline
-from src.utils import load_yaml_param_settings
-from src.utils import save_model
+from preprocessing.preprocess_ucr import UCRDatasetImporter
+from preprocessing.data_pipeline import build_data_pipeline
+from utils import load_yaml_param_settings
+from utils import save_model
 import torch
-from plotting import sample_plot_classes
 
 torch.set_float32_matmul_precision('medium')
 
@@ -22,22 +21,22 @@ from train_vqvae import train_VQVAE
 n_runs = 2
 
 UCR_subset = [
-    #'StarLightCurves',
-    #'ElectricDevices',
-    #'ECG5000',
-    #'Wafer',
-    #'TwoPatterns',
-    #'ShapesAll',
-    #'FordA',
-    #'UWaveGestureLibraryAll',
-    #'ChlorineConcentration',
-    #'FordB',
-    #'StarLightCurves',
-    #'ElectricDevices',
-    #'ECG5000',
-    #'Wafer',
-    #'TwoPatterns',
-    #'ShapesAll'
+    'StarLightCurves',
+    'ElectricDevices',
+    'ECG5000',
+    'Wafer',
+    'TwoPatterns',
+    'ShapesAll',
+    'FordA',
+    'UWaveGestureLibraryAll',
+    'ChlorineConcentration',
+    'FordB',
+    'StarLightCurves',
+    'ElectricDevices',
+    'ECG5000',
+    'Wafer',
+    'TwoPatterns',
+    'ShapesAll'
     "CBF",
 ]
 finished_vqvae = [
@@ -50,7 +49,7 @@ finished_barlow = [
 
 all_augs = ['AmpR','STFT', 'jitter', 'slope', 'flip']
 
-betas = [2, 1, 0.5]
+gammas = [2, 1, 0.5]
 
 wandb_project_name = "BarlowTwinsVQVAE"
 
@@ -60,11 +59,11 @@ def update_config(config, beta, dataset):
     c['barlow_twins']['beta'] = beta
     return c
 
-run_name_barlow = lambda dataset, beta, run: f"BVQVAE_{dataset}_allaugs_beta_{beta}_run_{run}"
+run_name_barlow = lambda dataset, gamma, run: f"BVQVAE_{dataset}_allaugs_gamma_{gamma}_run_{run}"
 run_name_vqvae = lambda dataset, run: f"VQVAE_{dataset}_run_{run}"
 
 if __name__ == "__main__":
-    config_dir = 'src/configs/config.yaml' #dir to config file
+    config_dir = 'configs/config.yaml' #dir to config file
 
     config = load_yaml_param_settings(config_dir)
 
@@ -73,7 +72,7 @@ if __name__ == "__main__":
         for ucr_dataset in UCR_subset:
             print(f"dataset: {ucr_dataset}")
 
-            config = update_config(config, betas[0], ucr_dataset)
+            config = update_config(config, gammas[0], ucr_dataset)
 
             # data pipeline
             dataset_importer = UCRDatasetImporter(**config['dataset'])
@@ -91,18 +90,18 @@ if __name__ == "__main__":
                             wandb_run_name=run_name_vqvae(ucr_dataset, run),
                             do_validate=True)
 
-            for beta in betas:
+            for gamma in gammas:
                 #overwriting config:
 
-                config = update_config(config, beta, ucr_dataset)
+                config = update_config(config, gamma, ucr_dataset)
                 
                 #running Barlow VQVAE experiment
-                if [ucr_dataset, beta] not in finished_barlow:
+                if [ucr_dataset, gamma] not in finished_barlow:
                     train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                                 train_data_loader=train_data_loader_non_aug,
                                 test_data_loader=test_data_loader, 
                                 wandb_project_name=wandb_project_name,
-                                wandb_run_name=run_name_barlow(ucr_dataset, beta, run),
+                                wandb_run_name=run_name_barlow(ucr_dataset, gamma, run),
                                 do_validate=True)
                     
             

@@ -4,14 +4,14 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from src.models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
+from models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
 
-from src.preprocessing.preprocess_ucr import UCRDatasetImporter
-from src.preprocessing.data_pipeline import build_data_pipeline
-from src.utils import load_yaml_param_settings
-from src.utils import save_model
+from preprocessing.preprocess_ucr import UCRDatasetImporter
+from preprocessing.data_pipeline import build_data_pipeline
+from utils import load_yaml_param_settings
+from utils import save_model
 import torch
-from plotting import sample_plot_classes
+
 
 torch.set_float32_matmul_precision('medium')
 
@@ -66,15 +66,15 @@ def train_BarlowVQVAE(config: dict,
 
     #print('saving the models...')
     
-    #beta = config['barlow_twins']['beta']
-    #save_model({f'barlow_{beta}_encoder': train_model.encoder,
-    #            f'barlow_{beta}_decoder': train_model.decoder,
-    #            f'barlow_vq_{beta}_model': train_model.vq_model,
-    #            }, id=config['dataset']['dataset_name'])
+    gamma = config['barlow_twins']['gamma']
+    save_model({f'barlow_{gamma}_encoder': train_model.encoder,
+                f'barlow_{gamma}_decoder': train_model.decoder,
+                f'barlow_vq_{gamma}_model': train_model.vq_model,
+                }, id=config['dataset']['dataset_name'])
     
     
 if __name__ == "__main__":
-    config_dir = 'src/configs/config.yaml' #dir to config file
+    config_dir = 'configs/config.yaml' #dir to config file
 
     config = load_yaml_param_settings(config_dir)
 
