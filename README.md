@@ -1,39 +1,43 @@
-## Repository details
-This repository contains the code for a Norwegian University of Science and Technology project thesis.
+## Repository  Details
 
-Implementation is heavily inspired by the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE). Here they introduce the TimeVQVAE model incorporating the STFT and ISTFT.
+This repository hosts the code for a project thesis at the Norwegian University of Science and Technology. It builds on the work of the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE) and further explores the representations of Vector Quantized Variational Autoencoders (VQVAEs) in time series analysis.
 
-This repository focuses on the addition of SSL, using the groundwork done by the authors of TimeVQVAE and the paper [Vector Quantized Time Series Generation with a Bidirectional Prior Model](https://arxiv.org/abs/2303.04743).
+In this project, we've integrated Self-Supervised Learning (SSL) techniques, drawing inspiration from both the foundational work of TimeVQVAE and insights from the [Barlow Twins paper](https://arxiv.org/abs/2103.03230). Our focus lies in enhancing VQVAE models with SSL to improve their performance and efficiency. The Barlow Twins implementation proved to enhance the VQVAEs robustness. 
 
 ## Contents
-This repository contains two models:
-1. Vector Quantized Variational Autoencoder (VQVAE) using STFT to process time-frequency representations.
-2. A VQVAE model using a two-branched encoder, enabling SSL loss functions to alter its representation capabilities. In this implementation, we introduce a Barlow Twins SSL objective for the VQVAE encoder, acting as a regularizer for enhanced training efficiency and more salient latent representations.
+This repository is structured around two main models:
+1. **VQVAE with STFT**: A traditional VQVAE model that utilizes Short-Time Fourer Transform (STFT) for processing time-frequency representations
+2. **Barlow Twins modified VQVAE**: A VQVAE model featuring a dual-branched encoder. This model is augmented with a Barlow Twins SSL objective, acting as a regularizer to boost training effectiveness and yield more distinct latent representations.
 
-## Model illustrations:
-Both models use time-frequency representations ($u$) to compress the input $x$ (time series) into compact latent variables $z$. They are optimized to reconstruct the input $\hat{x}$, using a codebook $\mathcal{Z}$ and the argmin process.
+## Model Illustrations
+Both models operate on the principle of compressing time series input $x$ into latent variables $z$ using time-frequency representations $u$. These models aim to reconstruct the input $\hat{x}$ through a codebook $\mathcal{Z}$ and an $\textit{argmin process}$. 
 
 **VQVAE using STFT**:
 
 ![VQVAE](https://github.com/erlendlokna/Barlow-Twins-VQVAE/assets/80318998/d29e1f57-114d-4e62-b29b-c7cdab69942c)
 
-**Barlow Twins modified VQVAE**:
+**Two-Branched barlow Twins VQVAE**:
 
 ![BarlowTwinsVQVAE](https://github.com/erlendlokna/Barlow-Twins-VQVAE/assets/80318998/574e021b-6eab-45e4-bd75-0b61c956ee14)
 
-
-## Running code
-
+## Running The Code
 ### Experiment for Thesis
-> experiment.py
+> python preprocessing/download_ucr_dataset.py 
 
-Runs the experiment on the UCR archive. It requires a data folder containing the UCR archive. Alter src/configs/config.yaml to change the training setup and procedure.
+Downloads the UCR archive
 
-### Training models
-> train_barlowvqvae.py
+> python experiment.py 
 
-Starts the training procedure for the dual-branched VQVAE using the Barlow Twins objective.
+Executes the thesis experiment. Training and  comparing the VQVAE with the two-branced Barlow Twins VQVAE for different SSL loss weightings, $\gamma$.
 
-> train_vqvae.py
+### Training Individual Models
+> python train_vqvae.py 
 
-Starts the training procedure for the VQVAE.
+Initiates the training for the traditional VQVAE model.
+
+> python train_barlowvqvae.py
+
+Begins the training process for the Barlow Twins-augmented VQVAE
+
+## Contrubution
+Contributions to this repository are welcome. If you find any issues or have suggestions for improvements, please open an issue or submit a pull request.
