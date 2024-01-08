@@ -1,6 +1,10 @@
 ## Repository  Details
 
-This repository hosts the code for a project thesis at the Norwegian University of Science and Technology. It builds on the work of the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE) and further explores the representations of Vector Quantized Variational Autoencoders (VQVAEs) in time series analysis.
+This repository hosts the code for a Norwegian University of Science and Technology project thesis:
+[Barlow-Twins-VQVAE.pdf](https://github.com/erlendlokna/Barlow-Twins-VQVAE/files/13859816/Barlow-Twins-VQVAE.pdf)
+
+
+It builds on the work of the [TimeVQVAE implementation](https://github.com/ML4ITS/TimeVQVAE) and further explores the representations of Vector Quantized Variational Autoencoders (VQVAEs) in time series analysis.
 
 In this project, we've integrated Self-Supervised Learning (SSL) techniques, drawing inspiration from both the foundational work of TimeVQVAE and insights from the [Barlow Twins paper](https://arxiv.org/abs/2103.03230). Our focus lies in enhancing VQVAE models with SSL to improve their performance and efficiency. The Barlow Twins implementation proved to enhance the VQVAEs robustness. 
 
