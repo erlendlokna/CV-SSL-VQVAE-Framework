@@ -28,18 +28,18 @@ Both models operate on the principle of compressing time series input $x$ into l
 ### Experiment for Thesis
 > python preprocessing/download_ucr_dataset.py 
 
-Downloads the UCR archive
+Downloads the UCR archive.
 
 > python experiment.py 
 
 Executes the thesis experiment. Training and  comparing the VQVAE with the two-branced Barlow Twins VQVAE for different SSL loss weightings, $\gamma$.
 
 ### Training Individual Models
-> python train_vqvae.py 
+> python train_VQVAE.py 
 
 Initiates the training for the traditional VQVAE model.
 
-> python train_barlowvqvae.py
+> python train_BTVQVAE.py
 
 Begins the training process for the Barlow Twins-augmented VQVAE
 
