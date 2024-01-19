@@ -26,7 +26,7 @@ Both models operate on the principle of compressing time series input $x$ into l
 
 ## Running The Code
 ### Experiment for Thesis
-> python preprocessing/download_ucr_dataset.py 
+> python download_ucr_dataset.py 
 
 Downloads the UCR archive.
 
