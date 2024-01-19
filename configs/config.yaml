@@ -43,3 +43,6 @@ barlow_twins:
   proj_out: 4096
   gamma: 1
 
+representations:
+  test_stage1: True
+  test_stage2: False

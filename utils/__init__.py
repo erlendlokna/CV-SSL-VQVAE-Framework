@@ -13,7 +13,7 @@ from sklearn import metrics
 import torch.nn.functional as F
 
 def get_root_dir():
-    return Path(__file__).parent.parent.parent
+    return Path(__file__).parent.parent
 
 def compute_downsample_rate(input_length: int,
                             n_fft: int,
@@ -137,3 +137,39 @@ def download_ucr_datasets(url='https://figshare.com/ndownloader/files/37909926',
         pass
 
     os.remove('./data/UCR_archive.zip')
+
+def encode_data(dataloader, encoder, n_fft, vq_model = None, cuda=True):
+    """
+    Function to encode the data using the encoder and optionally the quantizer. 
+    It encodes to continous latent variables by default (vq_model=False). 
+    ---
+    returns 
+    """
+    z_list = []  # List to hold all the encoded representations
+    y_list = []  # List to hold all the labels/targets
+
+    # Iterate over the entire dataloader
+    for batch in dataloader:
+        x, y = batch  # Unpack the batch.
+
+        # Perform the encoding
+        if cuda:
+            x = x.cuda()
+        C = x.shape[1]
+        xf = time_to_timefreq(x, n_fft, C).to(x.device)  # Convert time domain to frequency domain
+        z = encoder(xf)  # Encode the input
+
+        if vq_model is not None:
+            z, _, _, _ = quantize(z, vq_model)
+        # Convert the tensors to lists and append to z_list and y_list
+        z_list.extend(z.cpu().detach().tolist())
+        y_list.extend(y.cpu().detach().tolist())  # Make sure to detach y and move to CPU as well
+
+    # Convert lists of lists to 2D tensors
+    z_encoded = torch.tensor(z_list)
+    ys = torch.tensor(y_list)
+    if cuda:
+        z_encoded = z_encoded.cuda()
+        ys = ys.cuda()
+
+    return z_encoded, ys

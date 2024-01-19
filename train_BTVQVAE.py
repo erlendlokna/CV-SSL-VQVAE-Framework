@@ -4,7 +4,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-from models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
+from models.BTVQVAE import BTVQVAE
 
 from preprocessing.preprocess_ucr import UCRDatasetImporter
 from preprocessing.data_pipeline import build_data_pipeline
@@ -15,7 +15,7 @@ import torch
 
 torch.set_float32_matmul_precision('medium')
 
-def train_BarlowVQVAE(config: dict,
+def train_BTVQVAE(config: dict,
                 aug_train_data_loader: DataLoader,
                 train_data_loader: DataLoader,
                 test_data_loader: DataLoader,
@@ -33,7 +33,7 @@ def train_BarlowVQVAE(config: dict,
     
     input_length = train_data_loader.dataset.X.shape[-1]
 
-    train_model = BarlowTwinsVQVAE(input_length, 
+    train_model = BTVQVAE(input_length, 
                                     non_aug_test_data_loader=test_data_loader,
                                     non_aug_train_data_loader=train_data_loader, 
                                     config=config, n_train_samples=len(train_data_loader.dataset))
@@ -86,6 +86,6 @@ if __name__ == "__main__":
     augmentations = ['AmpR', 'slope', 'flip', 'STFT']
     train_data_loader_aug = build_data_pipeline(batch_size, dataset_importer, config, "train", augmentations)
 
-    train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
+    train_BTVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                     train_data_loader=train_data_loader_non_aug,
                     test_data_loader=test_data_loader, do_validate=True)

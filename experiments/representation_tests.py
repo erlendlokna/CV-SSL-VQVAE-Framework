@@ -4,13 +4,11 @@ import umap
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import normalized_mutual_info_score
 from sklearn.cluster import KMeans
 from sklearn import metrics
 from sklearn.metrics import silhouette_score
@@ -19,6 +17,47 @@ from sklearn.metrics import silhouette_score
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
+
+def test_model_representations(training_data, test_data):
+    """
+    training_data: tuple of ztr and ytr. Training latent representations and their respective labels
+    test_data: tuple of zts and yts. Test latent representations and their respective labels
+    ----
+    returns: dict with representation tests results
+    """
+    #data preprocessing
+    ztr, ytr = training_data
+    zts, yts = test_data 
+
+    ztr = torch.flatten(ztr, start_dim=1).detach().cpu().numpy()
+    zts = torch.flatten(zts, start_dim=1).detach().cpu().numpy()
+    ytr = torch.flatten(ytr, start_dim=0).detach().cpu().numpy()
+    yts = torch.flatten(yts, start_dim=0).detach().cpu().numpy()
+
+    ztr, zts = minmax_scale(ztr, zts) #scaling
+
+    z = np.concatenate((ztr, zts), axis=0)
+    y = np.concatenate((ytr, yts), axis=0)
+
+    #tests:
+    intristic_dim = intristic_dimension(z.reshape(-1, z.shape[-1]))
+    svm_acc = svm_test(ztr, zts, ytr, yts)
+    #silhuettes = kmeans_clustering_silhouette(z, y, n_runs=15)
+    #sil_mean, sil_std = np.mean(silhuettes), np.std(silhuettes)
+    knn1_acc, knn5_acc, knn10_acc = knn_test(ztr, zts, ytr, yts)
+
+    return {
+        'intrinstic_dim': intristic_dim,
+        'svm_acc': svm_acc,
+        #'sil_mean': sil_mean,
+        #'sil_std': sil_std,
+        #'svm_rbf': svm_gs_rbf_acc,
+        'knn1_acc': knn1_acc,
+        'knn5_acc': knn5_acc,
+        'knn10_acc': knn10_acc,
+        #'km_nmi_mean': km_nmi_mean,
+        #'km_nmi_std': km_nmi_std
+    }
 
 def standard_scale(Z_train, Z_test):
     scaler = StandardScaler().fit(Z_train)
@@ -79,10 +118,6 @@ def svm_test_gs_rbf(Z_train, Z_test, y_train, y_test, silent=False):
     print("svm rbf finished. Accuracy:", a)
     return a
 
-def classnet_test(Z_train, Z_test, y_train, y_test, CNN=False, num_epochs=200):
-    classnet = train_CNNClassNet(Z_train, y_train, num_epochs) if CNN else train_ClassNet(Z_train, y_train, num_epochs)
-    preds = classnet.predict(Z_test)
-    return metrics.accuracy_score(y_test, preds)
 
 def intristic_dimension(zqs, threshold=0.95):
     print("Calculating intrinstic dimension..")

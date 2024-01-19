@@ -1,11 +1,3 @@
-import wandb
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor
-from pytorch_lightning.loggers import WandbLogger
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-from models.BarlowTwinsVQVAE import BarlowTwinsVQVAE
-
 from preprocessing.preprocess_ucr import UCRDatasetImporter
 from preprocessing.data_pipeline import build_data_pipeline
 from utils import load_yaml_param_settings
@@ -14,9 +6,9 @@ import torch
 
 torch.set_float32_matmul_precision('medium')
 
-from train_barlowvqvae import train_BarlowVQVAE
+from train_BTVQVAE import train_BTVQVAE
 
-from train_vqvae import train_VQVAE
+from train_VQVAE import train_VQVAE
 
 n_runs = 2
 
@@ -97,7 +89,7 @@ if __name__ == "__main__":
                 
                 #running Barlow VQVAE experiment
                 if [ucr_dataset, gamma] not in finished_barlow:
-                    train_BarlowVQVAE(config, aug_train_data_loader = train_data_loader_aug,
+                    train_BTVQVAE(config, aug_train_data_loader = train_data_loader_aug,
                                 train_data_loader=train_data_loader_non_aug,
                                 test_data_loader=test_data_loader, 
                                 wandb_project_name=wandb_project_name,
